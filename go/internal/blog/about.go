@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type AboutLink struct {
@@ -35,7 +33,7 @@ func defaultAboutCard() AboutCard {
 func (s *Store) About(ctx context.Context) (AboutCard, string, error) {
 	var raw string
 	err := s.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key='about_card'`).Scan(&raw)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, ErrNoRows) {
 		return defaultAboutCard(), "", nil
 	}
 	if err != nil {

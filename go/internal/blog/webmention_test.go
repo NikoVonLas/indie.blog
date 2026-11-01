@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -223,12 +224,12 @@ func TestWebmentionInboxModerationAndUpdates(t *testing.T) {
 func TestWebmentionPublicPagination(t *testing.T) {
 	a := testApp(t)
 	p := seedPost(t, a, "mention-pages", true, false, time.Now().Add(-time.Hour))
-	_, err := a.Store.DB.Exec(context.Background(), `INSERT INTO webmentions
-		(id,direction,post_id,source,target,state,moderation,title)
-		SELECT 'page-'||n,'in',$1,'https://source.example/'||n,$2,'verified','approved','Mention '||n
-		FROM generate_series(1,51) n`, p.ID, a.Config.BaseURL+p.URL())
-	if err != nil {
-		t.Fatal(err)
+	for n := 1; n <= 51; n++ {
+		value := strconv.Itoa(n)
+		_, err := a.Store.DB.Exec(context.Background(), `INSERT INTO webmentions(id,direction,post_id,source,target,state,moderation,title) VALUES($1,'in',$2,$3,$4,'verified','approved',$5)`, "page-"+value, p.ID, "https://source.example/"+value, a.Config.BaseURL+p.URL(), "Mention "+value)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	b := newBrowser(a)
 	for _, page := range []struct {

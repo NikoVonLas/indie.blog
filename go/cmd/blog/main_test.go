@@ -17,32 +17,34 @@ import (
 
 func TestAdminSetupProtectedFile(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not configured")
-	}
 	ctx := context.Background()
-	root, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
+	if dsn == "" || dsn == "sqlite" {
+		dsn = "sqlite:" + filepath.Join(t.TempDir(), "blog.db")
+	} else {
+		root, err := pgxpool.New(ctx, dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer root.Close()
+		suffix := make([]byte, 16)
+		if _, err = rand.Read(suffix); err != nil {
+			t.Fatal(err)
+		}
+		schema := "setup_" + hex.EncodeToString(suffix)
+		if _, err = root.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+			t.Fatal(err)
+		}
+		defer root.Exec(ctx, "DROP SCHEMA "+schema+" CASCADE")
+		parsed, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		q := parsed.Query()
+		q.Set("search_path", schema)
+		parsed.RawQuery = q.Encode()
+		dsn = parsed.String()
 	}
-	defer root.Close()
-	suffix := make([]byte, 16)
-	if _, err = rand.Read(suffix); err != nil {
-		t.Fatal(err)
-	}
-	schema := "setup_" + hex.EncodeToString(suffix)
-	if _, err = root.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		t.Fatal(err)
-	}
-	defer root.Exec(ctx, "DROP SCHEMA "+schema+" CASCADE")
-	parsed, err := url.Parse(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	q := parsed.Query()
-	q.Set("search_path", schema)
-	parsed.RawQuery = q.Encode()
-	store, err := blog.Open(ctx, parsed.String())
+	store, err := blog.Open(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +52,7 @@ func TestAdminSetupProtectedFile(t *testing.T) {
 	if err = store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("DATABASE_URL", parsed.String())
+	t.Setenv("DATABASE_URL", dsn)
 	t.Setenv("BASE_URL", "http://localhost:8080")
 	t.Setenv("OWNER_EMAIL", "owner@example.test")
 	t.Setenv("OWNER_NAME", "Owner")

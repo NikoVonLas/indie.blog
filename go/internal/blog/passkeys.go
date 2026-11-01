@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/jackc/pgx/v5"
 )
 
 type passkeyUser struct {
@@ -169,7 +168,7 @@ func (a *Server) passkeyLoginBegin(w http.ResponseWriter, r *http.Request) {
 	}
 	protocolJSON(w, 200, options)
 }
-func loadPasskeyUser(ctx context.Context, tx pgx.Tx, id string) (passkeyUser, error) {
+func loadPasskeyUser(ctx context.Context, tx Transaction, id string) (passkeyUser, error) {
 	u, err := scanUser(tx.QueryRow(ctx, `SELECT `+userCols+` FROM users WHERE id=$1 AND is_admin AND NOT is_banned FOR UPDATE`, id))
 	if err != nil {
 		return passkeyUser{}, err
@@ -247,7 +246,7 @@ func (a *Server) passkeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	a.cookie(w, "csrf", "", -1)
 	protocolJSON(w, 200, map[string]string{"redirect": adminNext(flow.Next)})
 }
-func freshAdminSession(ctx context.Context, tx pgx.Tx, userID, sessionHash string) bool {
+func freshAdminSession(ctx context.Context, tx Transaction, userID, sessionHash string) bool {
 	var ok bool
 	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sessions s JOIN admin_passkeys k ON k.id=s.passkey_id AND k.user_id=s.user_id WHERE s.token_hash=$1 AND s.user_id=$2 AND s.expires_at>now() AND s.created_at>now()-interval '10 minutes')`, sessionHash, userID).Scan(&ok)
 	return err == nil && ok
@@ -287,7 +286,7 @@ func (a *Server) passkeyRegisterBegin(w http.ResponseWriter, r *http.Request) {
 			passkeyError(w, 403, "Для первичной настройки откройте блог на localhost или используйте защищённую ссылку настройки.")
 			return
 		}
-		if _, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(81241938)`); err != nil {
+		if err = tx.Lock(r.Context(), 81241938); err != nil {
 			a.fail(w, err)
 			return
 		}
@@ -367,7 +366,7 @@ func (a *Server) passkeyRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	// Serialize every registration against first-key enrollment, including CLI grants.
-	if _, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(81241938)`); err != nil {
+	if err = tx.Lock(r.Context(), 81241938); err != nil {
 		a.fail(w, err)
 		return
 	}
@@ -506,7 +505,7 @@ func (a *Server) localFirstKeyRequest(r *http.Request) bool {
 	}
 	return true
 }
-func noAdminKeys(ctx context.Context, tx pgx.Tx) bool {
+func noAdminKeys(ctx context.Context, tx Transaction) bool {
 	var empty bool
 	err := tx.QueryRow(ctx, `SELECT NOT EXISTS(SELECT 1 FROM admin_passkeys)`).Scan(&empty)
 	return err == nil && empty

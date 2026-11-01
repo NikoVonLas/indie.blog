@@ -18,10 +18,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/jackc/pgx/v5"
 )
 
 //go:embed templates/*.html static/*
@@ -29,6 +29,10 @@ var assets embed.FS
 
 type Config struct{ BaseURL, Title, Author, Language, Listen, SMTPAddr, SMTPUser, SMTPPassword, MailFrom, OwnerEmail, TelegramChannel, TelegramBotToken string }
 type Server struct {
+	cache       pageCache
+	viewsMu     sync.Mutex
+	flushMu     sync.Mutex
+	views       map[string]int64
 	Store       *Store
 	Config      Config
 	md          *Markdown
@@ -112,6 +116,7 @@ func NewServer(ctx context.Context, s *Store, c Config) (*Server, error) {
 	if e = app.initPOSSE(); e != nil {
 		return nil, e
 	}
+	s.DB.startChanges(ctx)
 	app.routes()
 	return app, nil
 }
@@ -244,10 +249,16 @@ func (a *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if c, e := r.Cookie("session"); e == nil && r.URL.Path != "/webmention" && !protocolRequest(r) {
-		u, e := a.Store.Session(r.Context(), c.Value)
+		var u *User
+		var e error
+		if a.cacheable(r) {
+			u, e = a.cachedSession(r.Context(), c.Value)
+		} else {
+			u, e = a.Store.Session(r.Context(), c.Value)
+		}
 		if e == nil {
 			r = r.WithContext(context.WithValue(r.Context(), identityKey{}, u))
-		} else if !errors.Is(e, pgx.ErrNoRows) {
+		} else if !errors.Is(e, ErrNoRows) {
 			a.fail(w, e)
 			return
 		}
@@ -260,7 +271,7 @@ func (a *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	a.mux.ServeHTTP(w, r)
+	a.serveCached(w, r)
 }
 func currentUser(r *http.Request) *User { u, _ := r.Context().Value(identityKey{}).(*User); return u }
 func (a *Server) lang(r *http.Request) string {
@@ -276,6 +287,9 @@ func (a *Server) sign(s string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 func (a *Server) csrf(w http.ResponseWriter, r *http.Request) string {
+	if info, ok := r.Context().Value(renderCacheKey{}).(*renderCacheInfo); ok {
+		return info.csrf
+	}
 	if c, e := r.Cookie("csrf"); e == nil && a.validToken(c.Value) {
 		return c.Value
 	}
@@ -474,7 +488,7 @@ func (a *Server) list(w http.ResponseWriter, r *http.Request) {
 }
 func (a *Server) show(w http.ResponseWriter, r *http.Request) {
 	p, e := a.Store.Post(r.Context(), r.PathValue("slug"), a.lang(r))
-	if errors.Is(e, pgx.ErrNoRows) {
+	if errors.Is(e, ErrNoRows) {
 		http.NotFound(w, r)
 		return
 	}
@@ -499,11 +513,11 @@ func (a *Server) show(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, p.ExternalURL, 302)
 		return
 	}
-	if _, e = a.Store.DB.Exec(r.Context(), `UPDATE posts SET views=views+1 WHERE id=$1`, p.ID); e != nil {
-		a.fail(w, e)
-		return
+	if info, ok := r.Context().Value(renderCacheKey{}).(*renderCacheInfo); ok {
+		info.postID = p.ID
+	} else if r.Method == "GET" {
+		a.recordView(p.ID)
 	}
-	p.Views++
 	cs, e := a.Store.Comments(r.Context(), p.ID)
 	if e != nil {
 		a.fail(w, e)

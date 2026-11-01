@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -115,10 +116,14 @@ func run() error {
 		return e
 	}
 	server := &http.Server{Addr: cfg.Listen, Handler: app, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 1 << 16}
-	go app.RunMailWorker(ctx)
-	go app.RunWebmentionWorker(ctx)
-	go app.RunPOSSEWorker(ctx)
+	var workers sync.WaitGroup
+	for _, work := range []func(context.Context){app.RunCacheWorker, app.RunMailWorker, app.RunWebmentionWorker, app.RunPOSSEWorker} {
+		workers.Add(1)
+		go func() { defer workers.Done(); work(ctx) }()
+	}
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		stop, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -126,6 +131,15 @@ func run() error {
 	}()
 	slog.Info("blog listening", "address", cfg.Listen)
 	e = server.ListenAndServe()
+	cancel()
+	<-shutdownDone
+	workers.Wait()
+	flush, done := context.WithTimeout(context.Background(), 5*time.Second)
+	flushErr := app.FlushViews(flush)
+	done()
+	if flushErr != nil {
+		return errors.New("could not persist final page-view batch")
+	}
 	if errors.Is(e, http.ErrServerClosed) {
 		return nil
 	}

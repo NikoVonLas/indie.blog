@@ -14,8 +14,6 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 func (a *Server) subscribe(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +195,7 @@ func (a *Server) deliverOne(ctx context.Context) (bool, error) {
 	e := a.Store.DB.QueryRow(ctx, `UPDATE outbox SET locked_until=now()+interval '2 minutes',attempts=attempts+1
  WHERE id=(SELECT id FROM outbox WHERE delivered_at IS NULL AND attempts<8 AND available_at<=now() AND (locked_until IS NULL OR locked_until<now()) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
  RETURNING id,recipient,subject,body,attempts`).Scan(&id, &to, &subject, &body, &attempt)
-	if errors.Is(e, pgx.ErrNoRows) {
+	if errors.Is(e, ErrNoRows) {
 		return false, nil
 	}
 	if e != nil {

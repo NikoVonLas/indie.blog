@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	_ "golang.org/x/image/webp"
 )
 
@@ -82,7 +81,7 @@ func (a *Server) media(w http.ResponseWriter, r *http.Request) {
 	var mime string
 	var data []byte
 	err := a.Store.DB.QueryRow(r.Context(), `SELECT content_type,body FROM uploads WHERE id=$1`, id).Scan(&mime, &data)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, ErrNoRows) {
 		http.NotFound(w, r)
 		return
 	}

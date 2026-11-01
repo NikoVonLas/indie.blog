@@ -9,8 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type Webmention struct {
@@ -299,7 +297,7 @@ func (a *Server) processMention(ctx context.Context, client *http.Client) (bool,
 	}
 	token := randomToken()
 	m, err := scanMention(a.Store.DB.QueryRow(ctx, `UPDATE webmentions SET locked_until=now()+interval '2 minutes',claim=$1,attempts=attempts+1 WHERE id=(SELECT id FROM webmentions WHERE state='queued' AND attempts<5 AND available_at<=now() AND (locked_until IS NULL OR locked_until<now()) ORDER BY available_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING `+mentionCols, token))
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {

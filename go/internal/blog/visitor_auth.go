@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"golang.org/x/net/html"
 )
 
@@ -232,7 +231,7 @@ func (a *Server) visitorCallback(w http.ResponseWriter, r *http.Request) {
 	var payload []byte
 	err = a.Store.DB.QueryRow(r.Context(), `DELETE FROM indieauth_logins WHERE state_hash=$1 AND browser_hash=$2 AND expires_at>now() RETURNING payload`, hash(state), hash(nonce.Value)).Scan(&payload)
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
+		if !errors.Is(err, ErrNoRows) {
 			a.fail(w, err)
 			return
 		}

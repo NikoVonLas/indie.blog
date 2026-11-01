@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 func (a *Server) login(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +64,7 @@ func (a *Server) edit(w http.ResponseWriter, r *http.Request) {
 	if id != "" {
 		var e error
 		p, e = a.Store.PostID(r.Context(), id)
-		if errors.Is(e, pgx.ErrNoRows) {
+		if errors.Is(e, ErrNoRows) {
 			http.NotFound(w, r)
 			return
 		}

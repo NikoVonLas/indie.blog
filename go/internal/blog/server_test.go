@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -16,34 +17,42 @@ import (
 
 func testApp(t *testing.T) *Server {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not configured")
-	}
 	ctx := context.Background()
-	root, e := pgxpool.New(ctx, dsn)
-	if e != nil {
-		t.Fatal(e)
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	var store *Store
+	var e error
+	if dsn == "" || dsn == "sqlite" {
+		store, e = Open(ctx, "sqlite:"+filepath.Join(t.TempDir(), "blog.db"))
+		if e != nil {
+			t.Fatal(e)
+		}
+		t.Cleanup(store.DB.Close)
+	} else {
+		root, err := pgxpool.New(ctx, dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		schema := "test_" + randomToken()[:16]
+		if _, err = root.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		q := parsed.Query()
+		q.Set("search_path", schema)
+		parsed.RawQuery = q.Encode()
+		store, e = Open(ctx, parsed.String())
+		if e != nil {
+			t.Fatal(e)
+		}
+		t.Cleanup(func() {
+			store.DB.Close()
+			_, _ = root.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
+			root.Close()
+		})
 	}
-	schema := "test_" + randomToken()[:16]
-	if _, e = root.Exec(ctx, "CREATE SCHEMA "+schema); e != nil {
-		t.Fatal(e)
-	}
-	cfg, e := pgxpool.ParseConfig(dsn)
-	if e != nil {
-		t.Fatal(e)
-	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	db, e := pgxpool.NewWithConfig(ctx, cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	store := &Store{db}
-	t.Cleanup(func() {
-		db.Close()
-		_, _ = root.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-		root.Close()
-	})
 	if e = store.Migrate(ctx); e != nil {
 		t.Fatal(e)
 	}

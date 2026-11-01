@@ -16,7 +16,7 @@ import (
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/commonmark"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/strikethrough"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/table"
-	"github.com/jackc/pgx/v5"
+
 	"golang.org/x/net/html"
 )
 
@@ -65,7 +65,7 @@ func (a *Server) structuredPost(p Post) template.JS {
 }
 func (a *Server) markdownPost(w http.ResponseWriter, r *http.Request) {
 	p, err := a.Store.Post(r.Context(), r.PathValue("slug"), a.lang(r))
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, ErrNoRows) {
 		http.NotFound(w, r)
 		return
 	}

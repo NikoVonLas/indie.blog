@@ -6,46 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed schema.sql
 var schema string
 
-type Store struct{ DB *pgxpool.Pool }
+type Store struct{ DB *Database }
 
 func Open(ctx context.Context, dsn string) (*Store, error) {
-	db, e := pgxpool.New(ctx, dsn)
-	if e != nil {
-		return nil, e
+	db, err := openDatabase(ctx, dsn)
+	if err != nil {
+		return nil, err
 	}
-	if e = db.Ping(ctx); e != nil {
-		db.Close()
-		return nil, errors.New("cannot connect to PostgreSQL")
-	}
-	return &Store{db}, nil
+	return &Store{DB: db}, nil
 }
-func (s *Store) Migrate(ctx context.Context) error {
-	tx, e := s.DB.Begin(ctx)
-	if e != nil {
-		return e
-	}
-	defer tx.Rollback(ctx)
-	if _, e = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(81241937)"); e != nil {
-		return e
-	}
-	if _, e = tx.Exec(ctx, schema); e != nil {
-		return e
-	}
-	return tx.Commit(ctx)
-}
+func (s *Store) Migrate(ctx context.Context) error { return s.DB.migrate(ctx) }
 
 const postCols = `id,slug,kind,lang,title,subtitle,body,summary,image,author,external_url,css,raw_html,visible,members_only,commentable,on_home,published_at,created_at,updated_at,views,data,deleted`
 
-func scanPost(row pgx.Row) (Post, error) {
+func scanPost(row Row) (Post, error) {
 	var p Post
 	e := row.Scan(&p.ID, &p.Slug, &p.Kind, &p.Lang, &p.Title, &p.Subtitle, &p.Body, &p.Summary, &p.Image, &p.Author, &p.ExternalURL, &p.CSS, &p.RawHTML, &p.Visible, &p.MembersOnly, &p.Commentable, &p.OnHome, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt, &p.Views, &p.Data, &p.Deleted)
 	return p, e
@@ -96,7 +75,7 @@ func (s *Store) SavePost(ctx context.Context, p *Post) error {
 }
 
 type executor interface {
-	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Exec(context.Context, string, ...any) (Result, error)
 }
 
 func savePost(ctx context.Context, db executor, p *Post) error {
@@ -136,7 +115,7 @@ func (s *Store) ImportPosts(ctx context.Context, posts []Post) error {
 	}
 	return tx.Commit(ctx)
 }
-func scanUser(row pgx.Row) (*User, error) {
+func scanUser(row Row) (*User, error) {
 	var u User
 	e := row.Scan(&u.ID, &u.Email, &u.Name, &u.PasswordHash, &u.Avatar, &u.Admin, &u.Banned, &u.Member, &u.ProfileURL)
 	return &u, e

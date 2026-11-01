@@ -16,7 +16,6 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/jackc/pgx/v5"
 	"golang.org/x/net/html"
 )
 
@@ -381,7 +380,7 @@ func (a *Server) processSyndication(ctx context.Context) error {
 		return nil
 	}
 	job, e := scanSyndication(a.Store.DB.QueryRow(ctx, `UPDATE syndications SET state='sending',attempts=attempts+1,updated_at=now() WHERE id=(SELECT id FROM syndications WHERE state='queued' AND available_at<=now() ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING `+syndicationCols))
-	if errors.Is(e, pgx.ErrNoRows) {
+	if errors.Is(e, ErrNoRows) {
 		return nil
 	}
 	if e != nil {

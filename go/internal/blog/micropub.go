@@ -18,8 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/microcosm-cc/bluemonday"
 )
 
@@ -352,15 +350,15 @@ func (a *Server) mpPost(ctx context.Context, raw string) (Post, error) {
 	u, e := url.Parse(raw)
 	base, _ := url.Parse(a.Config.BaseURL)
 	if e != nil || u.User != nil || !sameOrigin(u, base) || u.Fragment != "" {
-		return Post{}, pgx.ErrNoRows
+		return Post{}, ErrNoRows
 	}
 	q, e := url.ParseQuery(u.RawQuery)
 	if e != nil {
-		return Post{}, pgx.ErrNoRows
+		return Post{}, ErrNoRows
 	}
 	for k := range q {
 		if k != "lang" {
-			return Post{}, pgx.ErrNoRows
+			return Post{}, ErrNoRows
 		}
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
@@ -368,7 +366,7 @@ func (a *Server) mpPost(ctx context.Context, raw string) (Post, error) {
 		parts = parts[:2]
 	}
 	if len(parts) != 2 {
-		return Post{}, pgx.ErrNoRows
+		return Post{}, ErrNoRows
 	}
 	lang := q.Get("lang")
 	if lang == "" {
@@ -376,7 +374,7 @@ func (a *Server) mpPost(ctx context.Context, raw string) (Post, error) {
 	}
 	p, e := a.Store.Post(ctx, parts[1], lang)
 	if e != nil || p.Kind != parts[0] {
-		return Post{}, pgx.ErrNoRows
+		return Post{}, ErrNoRows
 	}
 	return p, nil
 }
@@ -543,8 +541,7 @@ func (a *Server) micropub(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 func (a *Server) mpSaveError(w http.ResponseWriter, e error) {
-	var pe *pgconn.PgError
-	if errors.As(e, &pe) && pe.Code == "23505" {
+	if errors.Is(e, ErrConflict) {
 		protocolError(w, 400, "invalid_request", "This slug is already in use")
 		return
 	}

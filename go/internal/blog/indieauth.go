@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"golang.org/x/net/html"
 )
 
@@ -410,7 +409,7 @@ func bearer(r *http.Request) string {
 func (a *Server) accessToken(ctx context.Context, raw string) (IndieToken, error) {
 	var t IndieToken
 	if len(raw) != 64 {
-		return t, pgx.ErrNoRows
+		return t, ErrNoRows
 	}
 	e := a.Store.DB.QueryRow(ctx, `SELECT t.id,t.user_id,t.client_id,t.scope,t.me,t.created_at,t.expires_at FROM indieauth_tokens t JOIN users u ON u.id=t.user_id WHERE token_hash=$1 AND expires_at>now() AND u.is_admin AND NOT u.is_banned AND me=$2`, hash(raw), a.Config.BaseURL+"/").Scan(&t.ID, &t.UserID, &t.ClientID, &t.Scope, &t.Me, &t.CreatedAt, &t.ExpiresAt)
 	return t, e
