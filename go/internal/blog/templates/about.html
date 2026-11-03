@@ -1,0 +1,54 @@
+{{define "about"}}
+<section class="about-card h-card" aria-labelledby="about-heading">
+    <div class="about-identity">
+        {{if .About.Avatar}}<img class="u-photo about-photo" src="{{.About.Avatar}}" alt="{{.About.Name}}" width="100" height="100">{{end}}
+        <h2 id="about-heading">Привет <span aria-hidden="true">👋</span> Я <a class="p-name u-url" href="{{.Site.BaseURL}}">{{.About.Name}}</a></h2>
+    </div>
+    <div class="p-note about-description">
+        {{if .About.Nickname}}<p>В интернете — <span class="p-nickname">{{.About.Nickname}}</span>.</p>{{end}}
+        {{.AboutHTML}}
+    </div>
+    {{if .About.Links}}<nav class="about-links" aria-label="Ссылки автора">
+        {{range .About.Links}}<a href="{{.URL}}{{if eq .URL "/rss/"}}?lang={{$.Lang}}{{end}}"{{if .Me}} rel="me"{{end}}>{{.Label}}</a>{{end}}
+    </nav>{{end}}
+    {{if .User}}{{if .User.Admin}}<p class="about-edit-link"><a href="/godmode/about/">Редактировать карточку</a></p>{{end}}{{end}}
+</section>
+{{end}}
+
+{{define "about-edit"}}
+<h1>Карточка «Обо мне»</h1>
+<p>Отображается на главной между последней статьёй и лентой записей.</p>
+<form method="post" class="editor about-form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="revision" value="{{.AboutRevision}}">
+    <label>Имя<input name="name" value="{{.About.Name}}" maxlength="128" required></label>
+    <label>Ник<input name="nickname" value="{{.About.Nickname}}" maxlength="128"></label>
+    <label>Описание<textarea name="description" rows="10" maxlength="10000">{{.About.Description}}</textarea></label>
+    <p class="hint">Поддерживается Markdown: абзацы, выделение, списки и ссылки.</p>
+    <label>Адрес фотографии<input name="avatar" value="{{.About.Avatar}}" data-image-preview="about-photo-preview"></label>
+    <label>Загрузить фотографию<input type="file" accept="image/jpeg,image/png,image/gif,image/webp" data-upload="avatar"></label>
+    <img id="about-photo-preview" class="upload-preview avatar-preview" alt="Предпросмотр фотографии" hidden>
+    <p class="hint">JPEG, PNG, GIF или WebP, до 10 МБ. Чтобы убрать фото, очистите его адрес.</p>
+    <p id="editor-status" role="status" aria-live="polite"></p>
+    <fieldset class="about-link-fields"><legend>Ссылки</legend>
+        <p class="hint">До 12 ссылок в порядке отображения. Для своих профилей выберите «Да». Пустые строки не сохраняются.</p>
+        <div data-about-links>{{range .About.Links}}{{template "about-link-row" .}}{{end}}{{if lt (len .About.Links) 12}}{{template "about-link-empty"}}{{end}}</div>
+        <button type="button" class="secondary" data-add-about-link hidden>Добавить ссылку</button>
+    </fieldset>
+    <button>Сохранить</button> <a href="/#about-heading">Посмотреть на главной</a>
+</form>
+<template id="about-link-template">{{template "about-link-empty"}}</template>
+{{end}}
+
+{{define "about-link-row"}}<div class="about-link-row">
+    <label>Название ссылки<input name="link_label" value="{{.Label}}" maxlength="80"></label>
+    <label>Адрес ссылки<input name="link_url" value="{{.URL}}" maxlength="2048" placeholder="https://example.org/"></label>
+    <label>Мой профиль<select name="link_me"><option value="no"{{if not .Me}} selected{{end}}>Нет</option><option value="yes"{{if .Me}} selected{{end}}>Да</option></select></label>
+    <button type="button" class="secondary" data-remove-about-link hidden>Убрать ссылку</button>
+</div>{{end}}
+{{define "about-link-empty"}}<div class="about-link-row">
+    <label>Название ссылки<input name="link_label" maxlength="80"></label>
+    <label>Адрес ссылки<input name="link_url" maxlength="2048" placeholder="https://example.org/"></label>
+    <label>Мой профиль<select name="link_me"><option value="no">Нет</option><option value="yes">Да</option></select></label>
+    <button type="button" class="secondary" data-remove-about-link hidden>Убрать ссылку</button>
+</div>{{end}}

@@ -1,5 +1,7 @@
 # vas3k.blog
 
+This fork is being ported to Go for a personal IndieWeb blog. The runnable Go version, local setup and tests are in [go/README.md](go/README.md); [go/PARITY.md](go/PARITY.md) tracks implemented and remaining features. The original Python application below is retained as a reference. The port is not yet a complete replacement.
+
 This repository contains the source code of my blog — https://vas3k.blog
 
 It is completely custom and is not intended to be used as a universal blog engine. I keep his code here purely because why not. Open Source FTW!

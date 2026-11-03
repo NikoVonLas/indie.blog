@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+<rect width="1440" height="960" fill="#156b9a"/>
+<path d="M0 160H1440M0 320H1440M0 480H1440M0 640H1440M0 800H1440M240 0V960M480 0V960M720 0V960M960 0V960M1200 0V960" stroke="#ffffff" stroke-opacity=".12" stroke-width="2"/>
+<text x="100" y="370" fill="#fff" font-family="Georgia,serif" font-size="330">Аа</text>
+<text x="920" y="260" fill="#a1d9f4" font-family="monospace" font-size="160">{ }</text>
+<text x="710" y="450" fill="#ffc455" font-family="Georgia,serif" font-size="270">&amp;</text>
+<path d="M1030 400H1300M1030 460H1250M1030 520H1300" stroke="#fff" stroke-width="12"/>
+<circle cx="1330" cy="100" r="27" fill="#ffc455"/>
+</svg>

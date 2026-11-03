@@ -1,0 +1,25 @@
+{{define "webmentions-public"}}{{if and .AcceptsMentions .Mentions}}
+<section class="discussion webmentions" aria-labelledby="webmentions-heading">
+<h2 id="webmentions-heading">На других сайтах</h2>
+{{range .Mentions}}<article class="webmention"><p class="hint">{{.KindLabel}}</p><a href="{{.Source}}" rel="nofollow ugc noopener noreferrer">{{.Title}}</a></article>{{end}}
+<nav class="pagination" aria-label="Страницы упоминаний">{{if .Previous}}<a href="{{.Post.URL}}&amp;wm_page={{.Previous}}#webmentions-heading">Новее</a>{{end}}{{if .Next}}<a href="{{.Post.URL}}&amp;wm_page={{.Next}}#webmentions-heading">Раньше</a>{{end}}</nav>
+</section>{{end}}{{end}}
+
+{{define "webmentions-admin"}}
+<h1>Упоминания</h1><p><a href="/godmode/">К публикациям</a></p>
+<p>Входящие ссылки появляются под записью после проверки и вашего одобрения. Исходящие отправляются кнопкой «Отправить Webmention» в редакторе записи.</p>
+{{range .Mentions}}<article class="mention-review">
+<p class="hint">{{if eq .Direction "in"}}Входящее · {{.KindLabel}}{{else}}Исходящее{{end}} · {{date .CreatedAt}}</p>
+<p><strong>{{.StateLabel}}</strong>{{if eq .Direction "in"}} · {{.ModerationLabel}}{{end}}</p>
+{{if .Title}}<h2>{{.Title}}</h2>{{end}}
+<p>Источник: <a href="{{.Source}}" rel="nofollow noopener noreferrer">{{.Source}}</a></p>
+<p>Назначение: <a href="{{.Target}}" rel="nofollow noopener noreferrer">{{.Target}}</a></p>
+{{if .Detail}}<p>{{.Detail}}</p>{{end}}
+{{if eq .Direction "in"}}<form method="post" action="/godmode/webmentions/{{.ID}}/" class="toolbar">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+{{if eq .State "verified"}}{{if ne .Moderation "approved"}}<button name="action" value="approve">Опубликовать</button>{{end}}{{end}}
+{{if ne .Moderation "rejected"}}<button class="secondary" name="action" value="reject">Скрыть</button>{{end}}
+<button class="secondary" name="action" value="recheck">Проверить снова</button></form>{{end}}
+</article>{{else}}<p>Входящих и исходящих упоминаний пока нет.</p>{{end}}
+<nav class="pagination" aria-label="Страницы">{{if .Previous}}<a href="?page={{.Previous}}">Новее</a>{{end}}{{if .Next}}<a href="?page={{.Next}}">Раньше</a>{{end}}</nav>
+{{end}}

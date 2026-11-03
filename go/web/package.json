@@ -1,0 +1,10 @@
+{
+  "name": "blog-article-assets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild article.js --bundle --splitting --format=esm --minify --outdir=../internal/blog/static/vendor --entry-names=article --chunk-names=chunk-[hash] --legal-comments=eof"
+  },
+  "dependencies": { "mermaid": "12.2.0", "highlight.js": "11.12.0" },
+  "devDependencies": { "esbuild": "0.28.2" }
+}

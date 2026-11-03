@@ -1,0 +1,6 @@
+.env
+/blog
+/data/
+*.db
+*.db-wal
+*.db-shm

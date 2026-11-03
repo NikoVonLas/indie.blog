@@ -1,0 +1,24 @@
+{{define "posse"}}
+<section class="posse-panel">
+<p><a href="/godmode/posts/{{.Post.ID}}/">← К редактору</a></p>
+<h1>Отправить в Telegram</h1>
+<p>Оригинал остаётся в блоге. В канале появится копия со ссылкой на запись.</p>
+{{if .POSSETarget.UID}}<p>Канал: <a href="{{.POSSETarget.UID}}" target="_blank" rel="noopener">{{.POSSETarget.Name}}</a></p>{{end}}
+<h2>Предпросмотр сообщения</h2>
+<pre class="posse-preview">{{.POSSEPreview}}</pre>
+<p class="hint">Отправляется сохранённая версия записи. Длинный текст сокращается; форматирование, изображения и интерактивные блоки доступны по ссылке на оригинал. Правки и удаление в блоге не меняют уже отправленное сообщение.</p>
+{{if .POSSEReason}}<p class="message">{{.POSSEReason}}</p>{{else if .POSSECanSend}}
+<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="action" value="send"><input type="hidden" name="revision" value="{{.POSSERevision}}"><button>Опубликовать в канале</button></form>
+{{end}}
+{{if .Syndications}}<h2>Отправки</h2>{{range .Syndications}}
+<article class="posse-job"><p><a href="{{.Target}}">{{.Target}}</a> — <strong>{{.StateLabel}}</strong></p>
+{{if .URL}}<p><a href="{{.URL}}">Открыть сообщение в Telegram ↗</a></p>{{end}}
+{{if .Detail}}<p>{{.Detail}}</p>{{end}}
+{{if and .Retryable (eq .Target $.POSSETarget.UID) (not $.POSSEReason)}}<form method="post"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="action" value="retry"><input type="hidden" name="revision" value="{{$.POSSERevision}}"><button class="secondary">Повторить отправку</button></form>{{end}}
+{{if eq .State "queued"}}<form method="post"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="action" value="cancel"><input type="hidden" name="job" value="{{.ID}}"><button class="secondary">Отменить отправку</button></form>{{end}}
+{{if eq .State "uncertain"}}<p>Автоматическая повторная отправка остановлена, чтобы не создать дубль. Если сообщение появилось в канале, сохраните его ссылку.</p><form method="post"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="action" value="resolve"><input type="hidden" name="job" value="{{.ID}}"><label>Ссылка на сообщение<input name="url" type="url" placeholder="{{.Target}}/123" required></label><button>Сохранить ссылку</button></form>
+{{if and (eq .Target $.POSSETarget.UID) (not $.POSSEReason)}}<form method="post"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="action" value="retry-checked"><input type="hidden" name="revision" value="{{$.POSSERevision}}"><label class="check"><input type="checkbox" name="checked" value="yes" required>Я проверил канал: сообщения нет</label><button class="secondary">Отправить после проверки</button></form>{{end}}{{end}}
+</article>{{end}}{{end}}
+<p><a href="">Обновить статус</a></p>
+</section>
+{{end}}

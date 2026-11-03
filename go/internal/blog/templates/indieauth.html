@@ -1,0 +1,16 @@
+{{define "indie-consent"}}
+<section class="indie-panel"><h1>Подключить приложение</h1>
+<p>Приложение <strong class="indie-url">{{.IndieRequest.ClientID}}</strong> запрашивает доступ к блогу <strong class="indie-url">{{.IndieRequest.Me}}</strong>.</p>
+<form method="post" action="/indieauth/approve"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="request" value="{{.IndieRequest.ID}}">
+{{if .IndieRequest.Scopes}}<fieldset><legend>Разрешить приложению</legend>{{range .IndieRequest.Scopes}}<label class="indie-permission"><input type="checkbox" name="scope" value="{{.Name}}" checked> {{.Label}}</label>{{end}}</fieldset>
+<p class="hint">Доступ действует 30 дней. Отозвать его можно в разделе «Приложения». Разрешение на правку также позволяет читать исходники записей, включая закрытые и черновики.</p>{{else}}<p>Приложение получит только подтверждение адреса вашего блога.</p>{{end}}
+<p class="hint indie-url">После подтверждения вы вернётесь на {{.IndieRequest.RedirectURI}}</p>
+<div class="toolbar"><button name="decision" value="allow">Разрешить</button><button class="secondary" name="decision" value="deny">Отказать</button></div></form></section>
+{{end}}
+{{define "indie-apps"}}
+<h1>Приложения</h1><p><a href="/godmode/">К публикациям</a></p>
+<p>В редакторе с поддержкой IndieAuth и Micropub укажите адрес блога: <strong class="indie-url">{{.Site.BaseURL}}/</strong>. Войдите как владелец и выберите разрешения.</p>
+<p class="hint">Для подключения интернет-сервисов блог должен быть доступен по публичному HTTPS-адресу. Локальный адрес подходит для разработки.</p>
+{{range .IndieTokens}}<article class="mention-review"><h2 class="indie-url">{{.ClientID}}</h2><p>{{.Permissions}}</p><p>Подключено {{date .CreatedAt}} · Действует до {{date .ExpiresAt}}</p><form method="post" action="/godmode/apps/"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}"><button class="secondary">Отозвать доступ</button></form></article>{{else}}<p>Подключённых приложений пока нет.</p>{{end}}
+<nav class="pagination" aria-label="Страницы приложений">{{if .Previous}}<a href="?page={{.Previous}}">Новее</a>{{end}}{{if .Next}}<a href="?page={{.Next}}">Раньше</a>{{end}}</nav>
+{{end}}
