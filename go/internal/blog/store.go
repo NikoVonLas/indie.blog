@@ -74,6 +74,46 @@ func (s *Store) SavePost(ctx context.Context, p *Post) error {
 	return savePost(ctx, s.DB, p)
 }
 
+// SavePostEdit preserves the current trash state even when the editor submitted
+// a page opened before another request deleted or restored the publication.
+func (s *Store) SavePostEdit(ctx context.Context, p *Post) error {
+	if p.ID == "" {
+		return s.SavePost(ctx, p)
+	}
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = tx.QueryRow(ctx, `SELECT deleted FROM posts WHERE id=$1 FOR UPDATE`, p.ID).Scan(&p.Deleted); err != nil {
+		return err
+	}
+	if err = savePost(ctx, tx, p); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// SetPostDeleted changes only the trash state, preserving edits made in another
+// browser tab. The row lock also serializes this action with Micropub and POSSE.
+func (s *Store) SetPostDeleted(ctx context.Context, id string, deleted bool) error {
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var current bool
+	if err = tx.QueryRow(ctx, `SELECT deleted FROM posts WHERE id=$1 FOR UPDATE`, id).Scan(&current); err != nil {
+		return err
+	}
+	if current != deleted {
+		if _, err = tx.Exec(ctx, `UPDATE posts SET deleted=$1,updated_at=now() WHERE id=$2`, deleted, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 type executor interface {
 	Exec(context.Context, string, ...any) (Result, error)
 }

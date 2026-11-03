@@ -97,8 +97,12 @@ func (a *Server) edit(w http.ResponseWriter, r *http.Request) {
 			a.render(w, r, page{Mode: "edit", Title: "Редактирование", Post: p, Message: "Проверьте адрес, язык, ссылки и дату публикации (UTC)."})
 			return
 		}
-		if e = a.Store.SavePost(r.Context(), &p); e != nil {
+		if e = a.Store.SavePostEdit(r.Context(), &p); e != nil {
 			a.render(w, r, page{Mode: "edit", Title: "Редактирование", Post: p, Message: "Не удалось сохранить. Возможно, этот адрес и язык уже заняты."})
+			return
+		}
+		if p.Deleted {
+			http.Redirect(w, r, "/godmode/posts/"+p.ID+"/", http.StatusSeeOther)
 			return
 		}
 		http.Redirect(w, r, p.URL(), 303)
@@ -125,4 +129,47 @@ func (a *Server) export(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", `attachment; filename="posts.json"`)
 	_ = json.NewEncoder(w).Encode(posts)
+}
+
+func (a *Server) deletePost(w http.ResponseWriter, r *http.Request) {
+	a.postTrash(w, r, true)
+}
+
+func (a *Server) restorePost(w http.ResponseWriter, r *http.Request) {
+	a.postTrash(w, r, false)
+}
+
+func (a *Server) postTrash(w http.ResponseWriter, r *http.Request, deleted bool) {
+	if !a.requireAdmin(w, r) {
+		return
+	}
+	p, err := a.Store.PostID(r.Context(), r.PathValue("id"))
+	if errors.Is(err, ErrNoRows) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	if r.Method == "POST" {
+		if err = a.Store.SetPostDeleted(r.Context(), p.ID, deleted); errors.Is(err, ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		} else if err != nil {
+			a.fail(w, err)
+			return
+		}
+		http.Redirect(w, r, "/godmode/", http.StatusSeeOther)
+		return
+	}
+	if p.Deleted == deleted {
+		http.Redirect(w, r, "/godmode/posts/"+p.ID+"/", http.StatusSeeOther)
+		return
+	}
+	mode, title := "post-delete", "Удалить запись?"
+	if !deleted {
+		mode, title = "post-restore", "Восстановить запись?"
+	}
+	a.render(w, r, page{Mode: mode, Title: title, Post: p})
 }
