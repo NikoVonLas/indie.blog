@@ -183,6 +183,10 @@ func (a *Server) routes() {
 	handle("POST /godmode/posts/new/", a.edit)
 	handle("GET /godmode/posts/{id}/", a.edit)
 	handle("POST /godmode/posts/{id}/", a.edit)
+	handle("GET /godmode/posts/{id}/delete/", a.deletePost)
+	handle("POST /godmode/posts/{id}/delete/", a.deletePost)
+	handle("GET /godmode/posts/{id}/restore/", a.restorePost)
+	handle("POST /godmode/posts/{id}/restore/", a.restorePost)
 
 	handle("GET /godmode/export/", a.export)
 	handle("POST /godmode/posts/{id}/announce/", a.announce)

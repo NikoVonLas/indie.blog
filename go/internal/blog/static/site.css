@@ -131,7 +131,7 @@ button.secondary { color: var(--text-color); background: var(--block-bg-color); 
 .editor { padding: 30px; background: var(--block-bg-color); border-radius: 30px; }
 .editor > label:first-child input { font-size: 26px; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 25px; }
-.admin-posts article { display: flex; align-items: center; justify-content: space-between; gap: 25px; margin: 20px 0; padding: 25px; border-radius: 15px; background: var(--block-bg-color); }
+.admin-posts article { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 25px; margin: 20px 0; padding: 25px; border-radius: 15px; background: var(--block-bg-color); }
 .admin-posts p, .hint { font-size: 14px; opacity: .75; }
 details { margin: 30px 0; }
 summary { cursor: pointer; color: var(--link-color); }
@@ -266,3 +266,8 @@ summary { cursor: pointer; color: var(--link-color); }
 .posse-job { border-top: 1px solid #444; padding: 16px 0; overflow-wrap: anywhere; }
 .posse-panel h1 { padding: 20px 0; margin: 0; text-align: left; font-size: clamp(28px, 4vw, 36px); }
 .posse-panel h2 { padding: 24px 0 16px; margin: 0; text-align: left; font-size: 24px; }
+
+.post-management { margin: 25px 0; }
+.admin-posts article > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+
+.page-post-delete .compact, .page-post-restore .compact { overflow-wrap: anywhere; }
