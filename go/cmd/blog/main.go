@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/NikoVonLas/vas3k.blog/go/internal/blog"
+	"github.com/NikoVonLas/indie.blog/go/internal/blog"
 )
 
 func main() {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikoVonLas/vas3k.blog/go/internal/blog"
+	"github.com/NikoVonLas/indie.blog/go/internal/blog"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

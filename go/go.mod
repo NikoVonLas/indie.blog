@@ -1,4 +1,4 @@
-module github.com/NikoVonLas/vas3k.blog/go
+module github.com/NikoVonLas/indie.blog/go
 
 go 1.26.0
 
