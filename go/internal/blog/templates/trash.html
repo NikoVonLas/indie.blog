@@ -3,16 +3,16 @@
   <h1>{{.Title}}</h1>
   <p><strong>{{if .Post.Title}}{{.Post.Title}}{{else}}{{.Post.Slug}}{{end}}</strong></p>
   {{if eq .Mode "post-delete"}}
-  <p>Запись исчезнет с сайта, из поиска и лент. Текст, изображения и комментарии сохранятся — запись можно будет восстановить.</p>
+  <p>{{t "Запись исчезнет с сайта, из поиска и лент. Текст, изображения и комментарии сохранятся — запись можно будет восстановить."}}</p>
   {{else}}
-  <p>Запись вернётся с прежними настройками публикации, датой и правами доступа.</p>
-  <p class="hint">{{if .Post.Visible}}Публикация включена{{else}}Черновик{{end}} · {{if .Post.MembersOnly}}Только участникам{{else}}Открытый доступ{{end}} · {{date .Post.PublishedAt}}</p>
+  <p>{{t "Запись вернётся с прежними настройками публикации, датой и правами доступа."}}</p>
+  <p class="hint">{{if .Post.Visible}}{{t "Публикация включена"}}{{else}}{{t "Черновик"}}{{end}} · {{if .Post.MembersOnly}}{{t "Только участникам"}}{{else}}{{t "Открытый доступ"}}{{end}} · {{date .Post.PublishedAt}}</p>
   {{end}}
   <form method="post">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="toolbar">
-      <button>{{if eq .Mode "post-delete"}}Переместить в корзину{{else}}Восстановить запись{{end}}</button>
-      <a href="/godmode/posts/{{.Post.ID}}/">Отмена</a>
+      <button>{{if eq .Mode "post-delete"}}{{t "Переместить в корзину"}}{{else}}{{t "Восстановить запись"}}{{end}}</button>
+      <a href="/godmode/posts/{{.Post.ID}}/">{{t "Отмена"}}</a>
     </div>
   </form>
 </section>

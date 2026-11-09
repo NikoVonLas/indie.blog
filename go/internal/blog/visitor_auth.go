@@ -177,7 +177,7 @@ func discoverVisitor(ctx context.Context, client *http.Client, raw string) (visi
 }
 func (a *Server) visitorError(w http.ResponseWriter, r *http.Request, message string) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	a.render(w, r, page{Status: 400, Mode: "login", Title: "Войти", Message: message, LoginNext: loginNext(r.PostForm.Get("next"))})
+	a.render(w, r, page{Status: 400, Mode: "login", Title: a.text(r, "Войти"), Message: message, LoginNext: loginNext(r.PostForm.Get("next"))})
 }
 func (a *Server) visitorVerifier(state string) string {
 	// Derive the PKCE secret without persisting it or exposing it to the browser.
@@ -214,7 +214,7 @@ func (a *Server) visitorStart(w http.ResponseWriter, r *http.Request) {
 	}
 	endpoint.RawQuery = q.Encode()
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	a.render(w, r, page{Mode: "login-redirect", Title: "Подтвердите вход", LoginRedirect: endpoint.String()})
+	a.render(w, r, page{Mode: "login-redirect", Title: a.text(r, "Подтвердите вход"), LoginRedirect: endpoint.String()})
 }
 func (a *Server) visitorCallback(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
@@ -305,11 +305,11 @@ func (a *Server) visitorCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if u.Admin {
-		http.Error(w, "Администратор входит через /admin с Passkey", 403)
+		http.Error(w, a.text(r, "Администратор входит через /admin с Passkey"), 403)
 		return
 	}
 	if u.Banned {
-		http.Error(w, "Этот профиль заблокирован", 403)
+		http.Error(w, a.text(r, "Этот профиль заблокирован"), 403)
 		return
 	}
 	token := randomToken()

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -38,6 +39,7 @@ func (s *Store) PostID(ctx context.Context, id string) (Post, error) {
 
 type Filter struct {
 	Lang, Kind, Search                    string
+	FallbackLang                          string
 	ExcludeID                             string
 	Admin, PublicOnly, Home, HomeTimeline bool
 	Limit, Offset                         int
@@ -50,12 +52,22 @@ func (s *Store) Posts(ctx context.Context, f Filter) ([]Post, error) {
 	if f.Offset < 0 {
 		f.Offset = 0
 	}
-	rows, e := s.DB.Query(ctx, `SELECT `+postCols+` FROM posts WHERE
- ($1='' OR lang=$1) AND ($2='' OR kind=$2) AND ($3 OR (visible AND NOT deleted AND published_at<=now()))
+	base := ` ($2='' OR kind=$2) AND ($3 OR (visible AND NOT deleted AND published_at<=now()))
  AND (NOT $4 OR NOT members_only) AND (NOT $5 OR on_home) AND (NOT $10 OR kind IN ('blog','notes'))
- AND ($6='' OR to_tsvector('simple',title||' '||body) @@ plainto_tsquery('simple',$6))
+ `
+	selected := ` AND ($6='' OR to_tsvector('simple',title||' '||body) @@ plainto_tsquery('simple',$6))
  AND ($9='' OR id<>$9)
- ORDER BY published_at DESC,id LIMIT $7 OFFSET $8`, f.Lang, f.Kind, f.Admin, f.PublicOnly, f.Home, f.Search, f.Limit, f.Offset, f.ExcludeID, f.HomeTimeline)
+ ORDER BY published_at DESC,id LIMIT $7 OFFSET $8`
+	query := `SELECT ` + postCols + ` FROM posts WHERE ($1='' OR lang=$1) AND ` + base + selected
+	args := []any{f.Lang, f.Kind, f.Admin, f.PublicOnly, f.Home, f.Search, f.Limit, f.Offset, f.ExcludeID, f.HomeTimeline}
+	if f.Lang != "" && f.FallbackLang != "" && !f.Admin {
+		baseLang, _, _ := strings.Cut(f.Lang, "-")
+		query = `SELECT ` + postCols + ` FROM posts WHERE id IN (SELECT id FROM (SELECT id,
+ row_number() OVER (PARTITION BY slug ORDER BY CASE WHEN lang=$1 THEN 0 WHEN lang=$12 OR lang LIKE $13 THEN 1 WHEN lang=$11 THEN 2 ELSE 3 END,lang) AS language_rank
+ FROM posts WHERE ` + base + `) variants WHERE language_rank=1)` + selected
+		args = append(args, f.FallbackLang, baseLang, baseLang+"-%")
+	}
+	rows, e := s.DB.Query(ctx, query, args...)
 	if e != nil {
 		return nil, e
 	}

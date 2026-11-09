@@ -87,7 +87,7 @@ func (a *Server) editAbout(w http.ResponseWriter, r *http.Request) {
 		card = AboutCard{Name: strings.TrimSpace(f.Get("name")), Nickname: strings.TrimSpace(f.Get("nickname")), Description: strings.TrimSpace(f.Get("description")), Avatar: strings.TrimSpace(f.Get("avatar"))}
 		labels, urls, profiles := f["link_label"], f["link_url"], f["link_me"]
 		if len(labels) != len(urls) || len(labels) != len(profiles) {
-			http.Error(w, "Некорректные поля ссылок", 400)
+			http.Error(w, a.text(r, "Некорректные поля ссылок"), 400)
 			return
 		}
 		for i, label := range labels {
@@ -118,5 +118,5 @@ func (a *Server) editAbout(w http.ResponseWriter, r *http.Request) {
 		// Keep the submitted revision: a second save must not silently overwrite newer changes.
 		revision = f.Get("revision")
 	}
-	a.render(w, r, page{Mode: "about-edit", Title: "Карточка «Обо мне»", About: card, AboutRevision: revision, Message: message})
+	a.render(w, r, page{Mode: "about-edit", Title: a.text(r, "Карточка «Обо мне»"), About: card, AboutRevision: revision, Message: message})
 }

@@ -260,7 +260,7 @@ func (a *Server) indieAuthorize(w http.ResponseWriter, r *http.Request) {
 	// Permit only the already-validated callback origin on this consent page.
 	policy := w.Header().Get("Content-Security-Policy")
 	w.Header().Set("Content-Security-Policy", strings.Replace(policy, "form-action 'self'", "form-action 'self' "+ru.Scheme+"://"+ru.Host, 1))
-	a.render(w, r, page{Mode: "indie-consent", Title: "Подключить приложение", IndieRequest: req})
+	a.render(w, r, page{Mode: "indie-consent", Title: a.text(r, "Подключить приложение"), IndieRequest: req})
 }
 func (a *Server) indieApprove(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(w, r) {
@@ -482,7 +482,7 @@ func (a *Server) indieApps(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, e)
 		return
 	}
-	p := page{Mode: "indie-apps", Title: "Приложения", IndieTokens: ts}
+	p := page{Mode: "indie-apps", Title: a.text(r, "Приложения"), IndieTokens: ts}
 	if len(ts) > 50 {
 		p.IndieTokens = ts[:50]
 		p.Next = n + 1

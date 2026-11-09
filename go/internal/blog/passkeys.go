@@ -80,12 +80,12 @@ func (a *Server) adminLoginPage(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	a.render(w, r, page{Mode: "admin-login", Title: "Вход администратора", FirstPasskey: !hasKeys, LoginNext: adminNext(r.URL.Query().Get("next"))})
+	a.render(w, r, page{Mode: "admin-login", Title: a.text(r, "Вход администратора"), FirstPasskey: !hasKeys, LoginNext: adminNext(r.URL.Query().Get("next"))})
 }
 func (a *Server) adminSetupPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
-	a.render(w, r, page{Mode: "admin-setup", Title: "Регистрация ключа"})
+	a.render(w, r, page{Mode: "admin-setup", Title: a.text(r, "Регистрация ключа")})
 }
 func (a *Server) adminKeys(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(w, r) {
@@ -110,7 +110,7 @@ func (a *Server) adminKeys(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	a.render(w, r, page{Mode: "admin-keys", Title: "Ключи администратора", PasskeyKeys: keys})
+	a.render(w, r, page{Mode: "admin-keys", Title: a.text(r, "Ключи администратора"), PasskeyKeys: keys})
 }
 func passkeyError(w http.ResponseWriter, status int, message string) {
 	protocolJSON(w, status, map[string]string{"error": message})
@@ -438,7 +438,7 @@ func (a *Server) deleteAdminKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if count <= 1 {
-		http.Error(w, "Сначала добавьте запасной ключ: последний удалить нельзя", 400)
+		http.Error(w, a.text(r, "Сначала добавьте запасной ключ: последний удалить нельзя"), 400)
 		return
 	}
 	if _, err = tx.Exec(r.Context(), `DELETE FROM admin_passkeys WHERE id=$1 AND user_id=$2`, r.PathValue("id"), u.ID); err != nil {

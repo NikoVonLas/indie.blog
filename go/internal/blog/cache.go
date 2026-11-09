@@ -171,7 +171,11 @@ func (a *Server) serveCached(w http.ResponseWriter, r *http.Request) {
 	if u := currentUser(r); u != nil {
 		identity = u.ID + fmt.Sprint(u.Admin, u.Member, u.Banned) + u.Name + u.Avatar + u.ProfileURL
 	}
-	key := identity + "\n" + r.URL.EscapedPath() + "?" + r.URL.Query().Encode()
+	locale := ""
+	if localizedResponse(r.URL.Path) {
+		locale = a.uiLang(r) + "/" + a.lang(r) + "/" + a.languageChoice(r)
+	}
+	key := identity + "\n" + locale + "\n" + r.URL.EscapedPath() + "?" + r.URL.Query().Encode()
 	response, hit := a.cache.get(key, epoch)
 	d.gate.RUnlock()
 	if hit && healthy {

@@ -40,6 +40,11 @@ html[data-js] .site-search:not(.site-search-visible) { display: none; }
 .site-search .header-search-form-submit { top: 0; right: 4px; width: 45px; height: 100%; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .header-logo { color: var(--text-color); }
 .header-burger { display: none; }
+.language-picker { display: flex; align-items: center; gap: 8px; margin: 0; }
+.language-picker select { width: auto; max-width: 155px; margin: 0; padding: 10px 12px; }
+.language-picker .language-apply { margin: 0; padding: 10px 12px; }
+html[data-js] .language-apply { display: none; }
+.language-notice { padding: 15px 20px; border-left: 2px solid var(--text-color); background: var(--block-bg-color); }
 main { margin-top: 20px; min-height: 50vh; }
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 30px; margin: 25px 0 45px; }
 .list-heading h1 { font-size: 230%; text-align: left; padding: 0; margin: 0; }

@@ -9,7 +9,7 @@ import (
 )
 
 func (a *Server) login(w http.ResponseWriter, r *http.Request) {
-	a.render(w, r, page{Mode: "login", Title: "Войти"})
+	a.render(w, r, page{Mode: "login", Title: a.text(r, "Войти")})
 }
 func (a *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, e := r.Cookie("session"); e == nil {
@@ -32,7 +32,7 @@ func (a *Server) profile(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimSpace(r.PostForm.Get("name"))
 		avatar := strings.TrimSpace(r.PostForm.Get("avatar"))
 		if name == "" || len(name) > 128 || !safeURL(avatar) {
-			http.Error(w, "Проверьте имя и адрес аватара", 400)
+			http.Error(w, a.text(r, "Проверьте имя и адрес аватара"), 400)
 			return
 		}
 		if _, e := a.Store.DB.Exec(r.Context(), `UPDATE users SET name=$1,avatar=$2 WHERE id=$3`, name, avatar, u.ID); e != nil {
@@ -42,7 +42,7 @@ func (a *Server) profile(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/profile/", 303)
 		return
 	}
-	a.render(w, r, page{Mode: "profile", Title: "Профиль"})
+	a.render(w, r, page{Mode: "profile", Title: a.text(r, "Профиль")})
 }
 func (a *Server) admin(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(w, r) {
@@ -53,7 +53,7 @@ func (a *Server) admin(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, e)
 		return
 	}
-	a.render(w, r, page{Mode: "admin", Title: "Публикации", Posts: posts})
+	a.render(w, r, page{Mode: "admin", Title: a.text(r, "Публикации"), Posts: posts})
 }
 func (a *Server) edit(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(w, r) {
@@ -94,11 +94,11 @@ func (a *Server) edit(w http.ResponseWriter, r *http.Request) {
 		t, e := time.Parse("2006-01-02T15:04", f.Get("published_at"))
 		p.PublishedAt = t
 		if e != nil || !p.Valid() {
-			a.render(w, r, page{Mode: "edit", Title: "Редактирование", Post: p, Message: "Проверьте адрес, язык, ссылки и дату публикации (UTC)."})
+			a.render(w, r, page{Mode: "edit", Title: a.text(r, "Редактирование"), Post: p, Message: "Проверьте адрес, язык, ссылки и дату публикации (UTC)."})
 			return
 		}
 		if e = a.Store.SavePostEdit(r.Context(), &p); e != nil {
-			a.render(w, r, page{Mode: "edit", Title: "Редактирование", Post: p, Message: "Не удалось сохранить. Возможно, этот адрес и язык уже заняты."})
+			a.render(w, r, page{Mode: "edit", Title: a.text(r, "Редактирование"), Post: p, Message: "Не удалось сохранить. Возможно, этот адрес и язык уже заняты."})
 			return
 		}
 		if p.Deleted {
@@ -108,7 +108,7 @@ func (a *Server) edit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, p.URL(), 303)
 		return
 	}
-	a.render(w, r, page{Mode: "edit", Title: "Редактирование", Post: p})
+	a.render(w, r, page{Mode: "edit", Title: a.text(r, "Редактирование"), Post: p})
 }
 func (a *Server) export(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(w, r) {

@@ -123,14 +123,17 @@ func TestMachineFormats(t *testing.T) {
 		if guide.Code != 200 || !strings.Contains(guide.Body.String(), public.MarkdownURL()) {
 			t.Fatal("llms guide missing public article")
 		}
-		for _, slug := range []string{"private-machine", "draft-machine", "future-machine", "english-machine"} {
+		if !strings.Contains(guide.Body.String(), en.MarkdownURL()) {
+			t.Error("llms guide omitted an untranslated public post")
+		}
+		for _, slug := range []string{"private-machine", "draft-machine", "future-machine"} {
 			if strings.Contains(guide.Body.String(), slug) {
-				t.Error("llms guide leaks or mixes languages", slug)
+				t.Error("llms guide leaks a nonpublic post", slug)
 			}
 		}
 	}
 	english := anon.request("GET", "/llms.txt?lang=en", nil)
-	if !strings.Contains(english.Body.String(), en.MarkdownURL()) || strings.Contains(english.Body.String(), public.MarkdownURL()) {
+	if !strings.Contains(english.Body.String(), en.MarkdownURL()) || !strings.Contains(english.Body.String(), public.MarkdownURL()) || !strings.Contains(english.Body.String(), "Preferred language: en") {
 		t.Error("llms language selection failed")
 	}
 	// HTML-mode articles are sanitized before conversion, just like the visible page.

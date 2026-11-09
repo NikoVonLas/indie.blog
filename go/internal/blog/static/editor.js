@@ -15,15 +15,15 @@
   const request = async (url, data) => {
     const response = await fetch(url, { method: 'POST', headers: { 'X-CSRF-Token': csrf }, body: data });
     if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
-      throw new Error(response.redirected ? 'Сессия закончилась. Войдите снова.' : await response.text());
+      throw new Error(response.redirected ? window.blogText('Сессия закончилась. Войдите снова.') : await response.text());
     }
     return response.json();
   };
   async function upload(file, target) {
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { notify('Размер изображения — не больше 10 МБ.'); return; }
+    if (file.size > 10 * 1024 * 1024) { notify(window.blogText('Размер изображения — не больше 10 МБ.')); return; }
     pending++;
-    notify('Загружаю изображение…');
+    notify(window.blogText('Загружаю изображение…'));
     try {
       const data = new FormData(); data.append('image', file);
       const result = await request(`/uploads/?purpose=${target === 'avatar' ? 'avatar' : 'post'}`, data);
@@ -37,8 +37,8 @@
         field.value = result.url;
         field.dispatchEvent(new Event('input', { bubbles: true }));
       }
-      notify('Изображение загружено. Сохраните изменения.');
-    } catch (error) { notify(error.message || 'Не удалось загрузить изображение.'); }
+      notify(window.blogText('Изображение загружено. Сохраните изменения.'));
+    } catch (error) { notify(error.message || window.blogText('Не удалось загрузить изображение.')); }
     finally { pending--; }
   }
   for (const picker of form.querySelectorAll('[data-upload]')) {
@@ -50,7 +50,7 @@
     field.addEventListener('input', update); update();
   }
   form.addEventListener('submit', (event) => {
-    if (pending) { event.preventDefault(); notify('Дождитесь завершения загрузки или вставки ссылки.'); }
+    if (pending) { event.preventDefault(); notify(window.blogText('Дождитесь завершения загрузки или вставки ссылки.')); }
   });
   const links = form.querySelector('[data-about-links]');
   if (links) {
@@ -89,16 +89,16 @@
       insert(`\n<pre><code class="language-${language}">${escaped}</code></pre>\n`);
     } else insert(`\n\n\`\`\`${language}\n${source}\n\`\`\`\n\n`);
   };
-  form.querySelector('[data-insert="mermaid"]').addEventListener('click', () => insertCode('mermaid', 'flowchart LR\n  A[Идея] --> B[Заметка]\n  B --> C[Статья]'));
-  form.querySelector('[data-insert="embed"]').addEventListener('click', () => insertCode('embed', '<button id="hello">Нажми</button>\n<script>document.querySelector("#hello").onclick = function () { this.textContent = "Работает!"; };</script>'));
+  form.querySelector('[data-insert="mermaid"]').addEventListener('click', () => insertCode('mermaid', window.blogText('flowchart LR\n  A[Идея] --> B[Заметка]\n  B --> C[Статья]')));
+  form.querySelector('[data-insert="embed"]').addEventListener('click', () => insertCode('embed', window.blogText('<button id="hello">Нажми</button>\n<script>document.querySelector("#hello").onclick = function () { this.textContent = "Работает!"; };</script>')));
   form.querySelector('[data-link-preview]').addEventListener('click', async () => {
     const url = form.querySelector('#link-url');
-    if (!url.value || !url.checkValidity()) { url.reportValidity(); notify('Введите полный адрес страницы.'); return; }
-    pending++; notify('Получаю превью страницы…');
+    if (!url.value || !url.checkValidity()) { url.reportValidity(); notify(window.blogText('Введите полный адрес страницы.')); return; }
+    pending++; notify(window.blogText('Получаю превью страницы…'));
     try {
       const result = await request('/godmode/link-preview/', new URLSearchParams({ url: url.value }));
-      insert(result.html); url.value = ''; notify('Карточка ссылки вставлена.');
-    } catch (error) { notify(error.message || 'Не удалось получить превью.'); }
+      insert(result.html); url.value = ''; notify(window.blogText('Карточка ссылки вставлена.'));
+    } catch (error) { notify(error.message || window.blogText('Не удалось получить превью.')); }
     finally { pending--; }
   });
 })();
