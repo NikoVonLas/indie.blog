@@ -105,8 +105,11 @@ func (a *Server) chooseLanguage(w http.ResponseWriter, r *http.Request) {
 	query.Del("lang") // Re-negotiate the article translation after a global switch.
 	query.Del("page")
 	query.Del("wm_page")
-	next.RawQuery = query.Encode()
-	http.Redirect(w, r, next.String(), http.StatusSeeOther)
+	// Rebuild the destination with the configured origin. Form data controls
+	// only the path/query/fragment, never the redirect's scheme or authority.
+	origin, _ := url.Parse(a.Config.BaseURL)
+	destination := &url.URL{Scheme: origin.Scheme, Host: origin.Host, Path: next.Path, RawQuery: query.Encode(), Fragment: next.Fragment}
+	http.Redirect(w, r, destination.String(), http.StatusSeeOther)
 }
 
 // Explicit content permalinks keep their language. Unpinned article URLs choose

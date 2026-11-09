@@ -410,10 +410,11 @@ func (a *Server) render(w http.ResponseWriter, r *http.Request, p page) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Language", p.Lang)
+	contentLanguage := p.Lang
 	if p.Mode == "post" && p.Post.Lang != p.Lang {
-		w.Header().Set("Content-Language", p.Lang+", "+p.Post.Lang)
+		contentLanguage += ", " + p.Post.Lang
 	}
+	w.Header().Set("Content-Language", contentLanguage)
 	if p.Status != 0 {
 		w.WriteHeader(p.Status)
 	}

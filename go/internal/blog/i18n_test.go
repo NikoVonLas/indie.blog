@@ -59,7 +59,13 @@ func TestBrowserLanguagePreferenceAndCache(t *testing.T) {
 	if w := languageGet(b, "/static/site.css", "ru"); w.Header().Get("X-Blog-Cache") != "HIT" || w.Header().Get("Content-Language") != "" {
 		t.Fatal("language-neutral assets were duplicated or labeled with a visitor's language")
 	}
-	if w := b.request("POST", "/language/", url.Values{"language": {"en"}, "next": {"/notes/?lang=ru&page=2&q=test#comments"}}); w.Code != 303 || w.Header().Get("Location") != "/notes/?q=test#comments" {
+}
+
+func TestManualLanguagePreference(t *testing.T) {
+	a := testApp(t)
+	b := newBrowser(a)
+	languageGet(b, "/", "ru")
+	if w := b.request("POST", "/language/", url.Values{"language": {"en"}, "next": {"/notes/?lang=ru&page=2&q=test#comments"}}); w.Code != 303 || w.Header().Get("Location") != a.Config.BaseURL+"/notes/?q=test#comments" {
 		t.Fatal("language switch did not preserve the page/search", w.Code, w.Header())
 	}
 	cookie := b.cookies[languageCookie]
@@ -88,13 +94,14 @@ func TestLanguagePreferenceCSRFAndReturnURL(t *testing.T) {
 		t.Fatal("unsupported choice was persisted", w.Code)
 	}
 	for _, next := range []string{"https://example.org/", "//example.org/", "/%2fexample.org/", "/%5cexample.org/", "?next=https://example.org/"} {
-		if w := b.request("POST", "/language/", url.Values{"language": {"ru"}, "next": {next}}); w.Code != 303 || w.Header().Get("Location") != "/" {
+		if w := b.request("POST", "/language/", url.Values{"language": {"ru"}, "next": {next}}); w.Code != 303 || w.Header().Get("Location") != a.Config.BaseURL+"/" {
 			t.Fatal("unsafe return URL", next, w.Header())
 		}
 	}
 }
 
-func TestTranslatedPostsAndFallback(t *testing.T) {
+func translatedPosts(t *testing.T) (*Server, Post, Post, Post) {
+	t.Helper()
 	a := testApp(t)
 	ctx := context.Background()
 	ru := seedPost(t, a, "translated", true, false, time.Now().Add(-time.Hour))
@@ -108,35 +115,64 @@ func TestTranslatedPostsAndFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	onlyRU := seedPost(t, a, "only-russian", true, false, time.Now().Add(-2*time.Hour))
+	return a, ru, en, onlyRU
+}
+
+func requirePageText(t *testing.T, w *httptest.ResponseRecorder, parts ...string) {
+	t.Helper()
+	if w.Code != 200 {
+		t.Fatal("unexpected page response", w.Code, w.Body.String())
+	}
+	for _, part := range parts {
+		if !strings.Contains(w.Body.String(), part) {
+			t.Fatal("page is missing", part, w.Body.String())
+		}
+	}
+}
+
+func forbidPageText(t *testing.T, w *httptest.ResponseRecorder, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if strings.Contains(w.Body.String(), part) {
+			t.Fatal("unexpected page content", part, w.Body.String())
+		}
+	}
+}
+
+func TestTranslatedPostsAndFallback(t *testing.T) {
+	a, ru, en, onlyRU := translatedPosts(t)
 	b := newBrowser(a)
 	path := "/blog/translated/"
 	w := languageGet(b, path, "en-US")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), en.Body) || strings.Contains(w.Body.String(), ru.Body) || !strings.Contains(w.Body.String(), `<html lang="en">`) || !strings.Contains(w.Body.String(), `<article class="h-entry" lang="en">`) {
-		t.Fatal("browser did not select the existing translation", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), `<title>Статьи ·`) || !strings.Contains(w.Body.String(), `hreflang="ru"`) || !strings.Contains(w.Body.String(), "Permalink") {
-		t.Fatal("author text was translated or translation links/UI are missing")
-	}
-	if w = languageGet(b, ru.URL(), "en-US"); w.Code != 200 || !strings.Contains(w.Body.String(), ru.Body) || !strings.Contains(w.Body.String(), `<html lang="en">`) || w.Header().Get("Content-Language") != "en, ru" {
+	requirePageText(t, w, en.Body, `<html lang="en">`, `<article class="h-entry" lang="en">`, `<title>Статьи ·`, `hreflang="ru"`, "Permalink")
+	forbidPageText(t, w, ru.Body)
+	w = languageGet(b, ru.URL(), "en-US")
+	requirePageText(t, w, ru.Body, `<html lang="en">`)
+	if w.Header().Get("Content-Language") != "en, ru" {
 		t.Fatal("explicit permalink lost its language or changed UI preference", w.Code)
 	}
-	if w = languageGet(b, "/notes/only-russian/", "en"); w.Code != 200 || !strings.Contains(w.Body.String(), onlyRU.Body) || !strings.Contains(w.Body.String(), "There is no translation") || !strings.Contains(w.Body.String(), `<article class="h-entry" lang="ru">`) {
-		t.Fatal("untranslated entry failed to fall back", w.Code, w.Body.String())
-	}
+	w = languageGet(b, "/notes/only-russian/", "en")
+	requirePageText(t, w, onlyRU.Body, "There is no translation", `<article class="h-entry" lang="ru">`)
 	if w = languageGet(b, "/blog/translated/?lang=de", "en"); w.Code != 404 {
 		t.Fatal("nonexistent explicit translation must stay 404", w.Code)
 	}
 	if w = languageGet(b, "/", "en"); strings.Count(w.Body.String(), `href="`+en.URL()+`"`) != 1 || strings.Contains(w.Body.String(), `href="`+ru.URL()+`"`) || !strings.Contains(w.Body.String(), onlyRU.Title) {
 		t.Fatal("home duplicated the hero translation or hid an untranslated note", w.Body.String())
 	}
+}
+
+func TestLanguageFeedsAndPublicationChanges(t *testing.T) {
+	a, ru, en, onlyRU := translatedPosts(t)
+	ctx := context.Background()
+	b := newBrowser(a)
 	for _, feed := range []string{"/rss/", "/feed.json", "/llms.txt"} {
-		w = languageGet(b, feed, "en")
-		if w.Code != 200 || !strings.Contains(w.Body.String(), en.Title) || !strings.Contains(w.Body.String(), onlyRU.Title) || strings.Contains(w.Body.String(), ru.Title) {
-			t.Fatal("feed did not select one preferred variant with fallback", feed, w.Code, w.Body.String())
-		}
+		w := languageGet(b, feed, "en")
+		requirePageText(t, w, en.Title, onlyRU.Title)
+		forbidPageText(t, w, ru.Title)
 	}
-	w = languageGet(b, "/blog/translated/index.md", "en")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), en.Body) || !strings.Contains(w.Body.String(), "Author:") || w.Header().Get("Content-Language") != "en" {
+	w := languageGet(b, "/blog/translated/index.md", "en")
+	requirePageText(t, w, en.Body, "Author:")
+	if w.Header().Get("Content-Language") != "en" {
 		t.Fatal("Markdown did not select the translation", w.Code)
 	}
 	// Publication changes invalidate both language variants and trigger fallback.
@@ -144,9 +180,9 @@ func TestTranslatedPostsAndFallback(t *testing.T) {
 	if err := a.Store.SavePost(ctx, &en); err != nil {
 		t.Fatal(err)
 	}
-	if w = languageGet(b, path, "en"); w.Code != 200 || !strings.Contains(w.Body.String(), ru.Body) || strings.Contains(w.Body.String(), en.Body) {
-		t.Fatal("draft translation leaked or cached publication remained", w.Code)
-	}
+	w = languageGet(b, "/blog/translated/", "en")
+	requirePageText(t, w, ru.Body)
+	forbidPageText(t, w, en.Body)
 	if w = languageGet(b, en.URL(), "en"); w.Code != 404 {
 		t.Fatal("explicit draft became accessible", w.Code)
 	}
