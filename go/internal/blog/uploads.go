@@ -21,45 +21,45 @@ var mediaID = regexp.MustCompile(`^[a-f0-9]{64}$`)
 func (a *Server) upload(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u == nil {
-		http.Error(w, "Войдите, чтобы загрузить изображение", 401)
+		http.Error(w, a.text(r, "Войдите, чтобы загрузить изображение"), 401)
 		return
 	}
 	purpose := r.URL.Query().Get("purpose")
 	if purpose != "avatar" && !u.Admin {
-		http.Error(w, "Недостаточно прав", 403)
+		http.Error(w, a.text(r, "Недостаточно прав"), 403)
 		return
 	}
 	if a.limited(w, r, "upload:"+u.ID, 60, time.Hour) {
 		return
 	}
 	if err := r.ParseMultipartForm(1 << 20); err != nil {
-		http.Error(w, "Размер изображения — не больше 10 МБ", 413)
+		http.Error(w, a.text(r, "Размер изображения — не больше 10 МБ"), 413)
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
 	file, _, err := r.FormFile("image")
 	if err != nil {
-		http.Error(w, "Выберите изображение", 400)
+		http.Error(w, a.text(r, "Выберите изображение"), 400)
 		return
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, (10<<20)+1))
 	if err != nil || len(data) > 10<<20 {
-		http.Error(w, "Размер изображения — не больше 10 МБ", 413)
+		http.Error(w, a.text(r, "Размер изображения — не больше 10 МБ"), 413)
 		return
 	}
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > 24_000_000 {
-		http.Error(w, "Нужен JPEG, PNG, GIF или WebP, не больше 24 мегапикселей", 400)
+		http.Error(w, a.text(r, "Нужен JPEG, PNG, GIF или WebP, не больше 24 мегапикселей"), 400)
 		return
 	}
 	mime := map[string]string{"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}[format]
 	if mime == "" {
-		http.Error(w, "Этот формат изображения не поддерживается", 400)
+		http.Error(w, a.text(r, "Этот формат изображения не поддерживается"), 400)
 		return
 	}
 	if _, _, err = image.Decode(bytes.NewReader(data)); err != nil {
-		http.Error(w, "Не удалось прочитать изображение", 400)
+		http.Error(w, a.text(r, "Не удалось прочитать изображение"), 400)
 		return
 	}
 	id := randomToken()

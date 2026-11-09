@@ -10,7 +10,7 @@ import (
 func (a *Server) comment(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u == nil {
-		http.Error(w, "Войдите, чтобы комментировать", 401)
+		http.Error(w, a.text(r, "Войдите, чтобы комментировать"), 401)
 		return
 	}
 	if a.limited(w, r, "comment", 30, 24*time.Hour) {
@@ -22,14 +22,14 @@ func (a *Server) comment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.Commentable {
-		http.Error(w, "Комментарии закрыты", 403)
+		http.Error(w, a.text(r, "Комментарии закрыты"), 403)
 		return
 	}
 	body := strings.TrimSpace(r.PostForm.Get("body"))
 	block := r.PostForm.Get("block")
 	reply := r.PostForm.Get("reply_to")
 	if body == "" || len(body) > 10000 || len(block) > 128 {
-		http.Error(w, "Комментарий пустой или слишком длинный", 400)
+		http.Error(w, a.text(r, "Комментарий пустой или слишком длинный"), 400)
 		return
 	}
 	if reply != "" {
@@ -40,7 +40,7 @@ func (a *Server) comment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !valid {
-			http.Error(w, "Ответ относится к другой публикации", 400)
+			http.Error(w, a.text(r, "Ответ относится к другой публикации"), 400)
 			return
 		}
 	}
@@ -104,7 +104,7 @@ func (a *Server) react(w http.ResponseWriter, r *http.Request) {
 	} else {
 		c, e := r.Cookie("csrf")
 		if e != nil {
-			http.Error(w, "Обновите страницу", 400)
+			http.Error(w, a.text(r, "Обновите страницу"), 400)
 			return
 		}
 		actor = "visitor:" + hash(c.Value)

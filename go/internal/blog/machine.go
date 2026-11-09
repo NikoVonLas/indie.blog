@@ -64,7 +64,7 @@ func (a *Server) structuredPost(p Post) template.JS {
 	return template.JS(data)
 }
 func (a *Server) markdownPost(w http.ResponseWriter, r *http.Request) {
-	p, err := a.Store.Post(r.Context(), r.PathValue("slug"), a.lang(r))
+	p, err := a.requestedPost(r)
 	if errors.Is(err, ErrNoRows) {
 		http.NotFound(w, r)
 		return
@@ -96,16 +96,17 @@ func (a *Server) markdownPost(w http.ResponseWriter, r *http.Request) {
 	if p.Subtitle != "" {
 		fmt.Fprintf(&out, "> %s\n\n", markdownLabel(p.Subtitle))
 	}
-	fmt.Fprintf(&out, "Автор: %s\n\nОпубликовано: %s\n\nОбновлено: %s\n\nЯзык: %s\n\nОригинал: <%s>\n\n", markdownLabel(author), p.PublishedAt.UTC().Format(time.RFC3339), p.UpdatedAt.UTC().Format(time.RFC3339), p.Lang, canonical)
+	fmt.Fprintf(&out, a.translate(p.Lang, "Автор: %s\n\nОпубликовано: %s\n\nОбновлено: %s\n\nЯзык: %s\n\nОригинал: <%s>\n\n"), markdownLabel(author), p.PublishedAt.UTC().Format(time.RFC3339), p.UpdatedAt.UTC().Format(time.RFC3339), p.Lang, canonical)
 	if p.Image != "" {
-		fmt.Fprintf(&out, "![Обложка](<%s>)\n\n", absoluteURL(canonical, p.Image))
+		fmt.Fprintf(&out, a.translate(p.Lang, "![Обложка](<%s>)\n\n"), absoluteURL(canonical, p.Image))
 	}
 	if p.ExternalURL != "" {
-		fmt.Fprintf(&out, "Внешняя публикация: <%s>\n\n", p.ExternalURL)
+		fmt.Fprintf(&out, a.translate(p.Lang, "Внешняя публикация: <%s>\n\n"), p.ExternalURL)
 	}
 	out.WriteString(body)
 	out.WriteByte('\n')
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Language", p.Lang)
 	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="canonical", <%s>; rel="alternate"; type="text/html", <%s/llms.txt?lang=%s>; rel="describedby"`, canonical, canonical, a.Config.BaseURL, p.Lang))
 	if p.MembersOnly || !p.Public(time.Now()) {
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
@@ -165,21 +166,21 @@ func (a *Server) markdownBody(p Post, canonical string) (string, error) {
 }
 func (a *Server) llms(w http.ResponseWriter, r *http.Request) {
 	lang := a.lang(r)
-	posts, err := a.Store.Posts(r.Context(), Filter{Lang: lang, PublicOnly: true, Limit: 20})
+	posts, err := a.Store.Posts(r.Context(), Filter{Lang: lang, FallbackLang: a.Config.Language, PublicOnly: true, Limit: 20})
 	if err != nil {
 		a.fail(w, err)
 		return
 	}
 	var out strings.Builder
-	fmt.Fprintf(&out, "# %s\n\n> Личный блог. Автор: %s. Язык этой подборки: %s.\n\n", markdownLabel(a.Config.Title), markdownLabel(a.Config.Author), lang)
-	out.WriteString("Статьи, короткие заметки и другие публикации автора. Ниже — последние открытые записи; полный список находится в архиве. HTML-страницы содержат ссылку rel=alternate на Markdown и метаданные BlogPosting в JSON-LD. В Markdown сохранены текст, ссылки и адреса медиа; содержимое спойлеров раскрыто.\n\n")
-	fmt.Fprintf(&out, "## Навигация\n\n- [Архив](%s/all/?lang=%s): все опубликованные записи.\n- [RSS](%s/rss/?lang=%s): обновления.\n- [JSON Feed](%s/feed.json?lang=%s): машиночитаемая лента.\n- [Карта сайта](%s/sitemap.xml): адреса открытых записей на всех языках.\n\n## Записи в Markdown\n\n", a.Config.BaseURL, lang, a.Config.BaseURL, lang, a.Config.BaseURL, lang, a.Config.BaseURL)
+	fmt.Fprintf(&out, a.translate(lang, "# %s\n\n> Личный блог. Автор: %s. Язык этой подборки: %s.\n\n"), markdownLabel(a.Config.Title), markdownLabel(a.Config.Author), lang)
+	out.WriteString(a.translate(lang, "Статьи, короткие заметки и другие публикации автора. Ниже — последние открытые записи; полный список находится в архиве. HTML-страницы содержат ссылку rel=alternate на Markdown и метаданные BlogPosting в JSON-LD. В Markdown сохранены текст, ссылки и адреса медиа; содержимое спойлеров раскрыто.\n\n"))
+	fmt.Fprintf(&out, a.translate(lang, "## Навигация\n\n- [Архив](%s/all/?lang=%s): все опубликованные записи.\n- [RSS](%s/rss/?lang=%s): обновления.\n- [JSON Feed](%s/feed.json?lang=%s): машиночитаемая лента.\n- [Карта сайта](%s/sitemap.xml): адреса открытых записей на всех языках.\n\n## Записи в Markdown\n\n"), a.Config.BaseURL, lang, a.Config.BaseURL, lang, a.Config.BaseURL, lang, a.Config.BaseURL)
 	for _, p := range posts {
 		title := p.Title
 		if title == "" {
-			title = "Заметка"
+			title = a.translate(lang, "Заметка")
 		}
-		fmt.Fprintf(&out, "- [%s](%s%s): %s, %s.\n", markdownLabel(title), a.Config.BaseURL, p.MarkdownURL(), kindLabel(p.Kind), p.PublishedAt.UTC().Format("2006-01-02"))
+		fmt.Fprintf(&out, "- [%s](%s%s): %s, %s, %s.\n", markdownLabel(title), a.Config.BaseURL, p.MarkdownURL(), a.translate(lang, kindLabel(p.Kind)), p.PublishedAt.UTC().Format("2006-01-02"), p.Lang)
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprint(w, out.String())

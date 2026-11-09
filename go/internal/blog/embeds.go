@@ -108,6 +108,7 @@ func (a *Server) embed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Language", p.Lang)
 	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	w.Header().Set("Content-Security-Policy", "sandbox "+embedSandbox+"; default-src 'none'; script-src 'unsafe-inline' https: http:; style-src 'unsafe-inline' https: http:; img-src data: https: http:; font-src https: http:; media-src https: http:; connect-src https: http:; frame-src https: http:; form-action https: http:; base-uri 'none'; frame-ancestors 'self'")

@@ -166,7 +166,7 @@ func (a *Server) mentionsAdmin(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	p := page{Mode: "webmentions", Title: "Упоминания", Mentions: mentions, Page: n}
+	p := page{Mode: "webmentions", Title: a.text(r, "Упоминания"), Mentions: mentions, Page: n}
 	if len(mentions) > 50 {
 		p.Mentions = mentions[:50]
 		p.Next = n + 1
@@ -192,7 +192,7 @@ func (a *Server) moderateMention(w http.ResponseWriter, r *http.Request) {
 	case "recheck":
 		_, err = a.Store.DB.Exec(r.Context(), `UPDATE webmentions SET state='queued',attempts=0,available_at=now(),locked_until=NULL,claim='',detail='' WHERE id=$1 AND direction='in'`, r.PathValue("id"))
 	default:
-		http.Error(w, "Неизвестное действие", 400)
+		http.Error(w, a.text(r, "Неизвестное действие"), 400)
 		return
 	}
 	if err != nil {
@@ -207,12 +207,12 @@ func (a *Server) sendMentions(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := a.Store.PostID(r.Context(), r.PathValue("id"))
 	if err != nil || !p.Public(time.Now()) || p.MembersOnly || p.ExternalURL != "" {
-		http.Error(w, "Нужна опубликованная открытая запись", 400)
+		http.Error(w, a.text(r, "Нужна опубликованная открытая запись"), 400)
 		return
 	}
 	source := a.Config.BaseURL + p.URL()
 	if _, err := publicURL(source); err != nil {
-		http.Error(w, "Для отправки нужен публичный адрес блога в BASE_URL. С localhost другие сайты не смогут проверить запись.", 400)
+		http.Error(w, a.text(r, "Для отправки нужен публичный адрес блога в BASE_URL. С localhost другие сайты не смогут проверить запись."), 400)
 		return
 	}
 	if a.limited(w, r, "webmention-send:"+p.ID, 10, time.Hour) {
@@ -220,7 +220,7 @@ func (a *Server) sendMentions(w http.ResponseWriter, r *http.Request) {
 	}
 	targets := outgoingTargets(string(a.md.RenderPost(p)), source)
 	if len(targets) > 100 {
-		http.Error(w, "В записи больше 100 внешних ссылок; сократите их число для отправки Webmention.", 400)
+		http.Error(w, a.text(r, "В записи больше 100 внешних ссылок; сократите их число для отправки Webmention."), 400)
 		return
 	}
 	tx, err := a.Store.DB.Begin(r.Context())
@@ -256,7 +256,7 @@ func (a *Server) sendMentions(w http.ResponseWriter, r *http.Request) {
 		pairs[pair{source, target}] = true
 	}
 	if len(pairs) > 300 {
-		http.Error(w, "Для этой записи накопилось больше 300 адресов отправки.", 400)
+		http.Error(w, a.text(r, "Для этой записи накопилось больше 300 адресов отправки."), 400)
 		return
 	}
 	for v := range pairs {

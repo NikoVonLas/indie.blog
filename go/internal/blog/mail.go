@@ -18,11 +18,11 @@ import (
 
 func (a *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		a.render(w, r, page{Mode: "subscribe", Title: "Подписаться"})
+		a.render(w, r, page{Mode: "subscribe", Title: a.text(r, "Подписаться")})
 		return
 	}
 	if a.Config.SMTPAddr == "" {
-		http.Error(w, "Рассылка пока не подключена. Используйте RSS.", 503)
+		http.Error(w, a.text(r, "Рассылка пока не подключена. Используйте RSS."), 503)
 		return
 	}
 	if a.limited(w, r, "subscribe", 5, time.Hour) {
@@ -31,7 +31,7 @@ func (a *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 	email := strings.ToLower(strings.TrimSpace(r.PostForm.Get("email")))
 	addr, e := mail.ParseAddress(email)
 	if e != nil || addr.Address != email || len(email) > 254 || r.PostForm.Get("website") != "" {
-		http.Error(w, "Проверьте адрес почты", 400)
+		http.Error(w, a.text(r, "Проверьте адрес почты"), 400)
 		return
 	}
 	ok, e := a.Store.Allow(r.Context(), "subscribe-email:"+a.sign(email), 3, time.Hour)
@@ -40,7 +40,7 @@ func (a *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		http.Error(w, "Проверьте почту или попробуйте позже", 429)
+		http.Error(w, a.text(r, "Проверьте почту или попробуйте позже"), 429)
 		return
 	}
 	token := randomToken()
@@ -70,7 +70,7 @@ func (a *Server) subscribe(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, e)
 		return
 	}
-	a.render(w, r, page{Mode: "message", Title: "Проверьте почту", Message: "Если адрес ещё не подтверждён, мы отправим письмо со ссылкой."})
+	a.render(w, r, page{Mode: "message", Title: a.text(r, "Проверьте почту"), Message: "Если адрес ещё не подтверждён, мы отправим письмо со ссылкой."})
 }
 func (a *Server) confirm(w http.ResponseWriter, r *http.Request) {
 	tag, e := a.Store.DB.Exec(r.Context(), `UPDATE subscribers SET confirmed=true WHERE token_hash=$1 AND created_at>now()-interval '30 days'`, hash(r.PathValue("token")))
@@ -79,10 +79,10 @@ func (a *Server) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		http.Error(w, "Ссылка недействительна или истекла", 400)
+		http.Error(w, a.text(r, "Ссылка недействительна или истекла"), 400)
 		return
 	}
-	a.render(w, r, page{Mode: "message", Title: "Подписка подтверждена"})
+	a.render(w, r, page{Mode: "message", Title: a.text(r, "Подписка подтверждена")})
 }
 func (a *Server) unsubscribe(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.PathValue("token"), ".")
@@ -91,7 +91,7 @@ func (a *Server) unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
-		a.render(w, r, page{Mode: "unsubscribe", Title: "Отписаться"})
+		a.render(w, r, page{Mode: "unsubscribe", Title: a.text(r, "Отписаться")})
 		return
 	}
 	tx, e := a.Store.DB.Begin(r.Context())
@@ -112,19 +112,19 @@ func (a *Server) unsubscribe(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, e)
 		return
 	}
-	a.render(w, r, page{Mode: "message", Title: "Вы отписались"})
+	a.render(w, r, page{Mode: "message", Title: a.text(r, "Вы отписались")})
 }
 func (a *Server) announce(w http.ResponseWriter, r *http.Request) {
 	if !a.requireAdmin(w, r) {
 		return
 	}
 	if a.Config.SMTPAddr == "" {
-		http.Error(w, "Рассылка не подключена", 503)
+		http.Error(w, a.text(r, "Рассылка не подключена"), 503)
 		return
 	}
 	p, e := a.Store.PostID(r.Context(), r.PathValue("id"))
 	if e != nil || !p.Public(time.Now()) || p.MembersOnly {
-		http.Error(w, "Можно рассылать только опубликованные открытые записи", 400)
+		http.Error(w, a.text(r, "Можно рассылать только опубликованные открытые записи"), 400)
 		return
 	}
 	// Materialise recipients before starting a transaction, avoiding pool starvation.
@@ -167,7 +167,7 @@ func (a *Server) announce(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, e)
 		return
 	}
-	a.render(w, r, page{Mode: "message", Title: "Анонс поставлен в очередь"})
+	a.render(w, r, page{Mode: "message", Title: a.text(r, "Анонс поставлен в очередь")})
 }
 func (a *Server) RunMailWorker(ctx context.Context) {
 	if a.Config.SMTPAddr == "" {

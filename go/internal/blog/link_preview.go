@@ -167,14 +167,14 @@ func (a *Server) linkPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Проверьте адрес страницы", 400)
+		http.Error(w, a.text(r, "Проверьте адрес страницы"), 400)
 		return
 	}
 	client := publicPreviewClient()
 	defer client.CloseIdleConnections()
 	meta, err := fetchLinkMetadata(r.Context(), r.PostForm.Get("url"), client)
 	if err != nil {
-		http.Error(w, "Не удалось получить превью. Нужна открытая HTML-страница по http/https; можно вставить обычную ссылку.", 400)
+		http.Error(w, a.text(r, "Не удалось получить превью. Нужна открытая HTML-страница по http/https; можно вставить обычную ссылку."), 400)
 		return
 	}
 	var snippet bytes.Buffer

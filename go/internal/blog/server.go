@@ -8,6 +8,7 @@ import (
 	"crypto/subtle"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -24,7 +25,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-//go:embed templates/*.html static/*
+//go:embed templates/*.html static/* locales/*.json
 var assets embed.FS
 
 type Config struct{ BaseURL, Title, Author, Language, Listen, SMTPAddr, SMTPUser, SMTPPassword, MailFrom, OwnerEmail, TelegramChannel, TelegramBotToken string }
@@ -36,7 +37,8 @@ type Server struct {
 	Store       *Store
 	Config      Config
 	md          *Markdown
-	templates   *template.Template
+	templates   map[string]*template.Template
+	english     map[string]string
 	secret      string
 	mux         *http.ServeMux
 	visitorHTTP *http.Client
@@ -49,34 +51,37 @@ type commentView struct {
 	HTML template.HTML
 }
 type page struct {
-	POSSECanSend                                            bool
-	Syndications                                            []Syndication
-	POSSETarget                                             SyndicationTarget
-	POSSEPreview, POSSERevision, POSSEReason                string
-	PasskeyKeys                                             []adminKey
-	FirstPasskey                                            bool
-	Status                                                  int
-	Title, Mode, Message, CSRF, Lang, Query, Block, ReplyTo string
-	LoginNext, LoginRedirect                                string
-	Site                                                    Config
-	User                                                    *User
-	Post                                                    Post
-	Posts                                                   []Post
-	Comments                                                []commentView
-	HTML                                                    template.HTML
-	StructuredData                                          template.JS
-	Kinds                                                   []string
-	Page, Next, Previous                                    int
-	Translations                                            []Post
-	Home                                                    bool
-	Hero                                                    *Post
-	About                                                   AboutCard
-	AboutHTML                                               template.HTML
-	AboutRevision                                           string
-	Mentions                                                []Webmention
-	AcceptsMentions                                         bool
-	IndieRequest                                            IndieRequest
-	IndieTokens                                             []IndieToken
+	POSSECanSend                                               bool
+	Syndications                                               []Syndication
+	POSSETarget                                                SyndicationTarget
+	POSSEPreview, POSSERevision, POSSEReason                   string
+	PasskeyKeys                                                []adminKey
+	FirstPasskey                                               bool
+	Status                                                     int
+	Title, Mode, Message, CSRF, Lang, Query, Block, ReplyTo    string
+	ContentLang, PreferredLang, LanguageChoice, LanguageReturn string
+	ContentFallback                                            bool
+	ClientMessages                                             template.JS
+	LoginNext, LoginRedirect                                   string
+	Site                                                       Config
+	User                                                       *User
+	Post                                                       Post
+	Posts                                                      []Post
+	Comments                                                   []commentView
+	HTML                                                       template.HTML
+	StructuredData                                             template.JS
+	Kinds                                                      []string
+	Page, Next, Previous                                       int
+	Translations                                               []Post
+	Home                                                       bool
+	Hero                                                       *Post
+	About                                                      AboutCard
+	AboutHTML                                                  template.HTML
+	AboutRevision                                              string
+	Mentions                                                   []Webmention
+	AcceptsMentions                                            bool
+	IndieRequest                                               IndieRequest
+	IndieTokens                                                []IndieToken
 }
 
 func NewServer(ctx context.Context, s *Store, c Config) (*Server, error) {
@@ -105,10 +110,20 @@ func NewServer(ctx context.Context, s *Store, c Config) (*Server, error) {
 	if e = s.DB.QueryRow(ctx, `SELECT value FROM settings WHERE key='csrf_secret'`).Scan(&app.secret); e != nil {
 		return nil, e
 	}
-	funcs := template.FuncMap{"date": func(t time.Time) string { return t.Format("02.01.2006") }, "iso": func(t time.Time) string { return t.UTC().Format(time.RFC3339) }, "inputDate": func(t time.Time) string { return t.UTC().Format("2006-01-02T15:04") }, "label": kindLabel}
-	app.templates, e = template.New("site").Funcs(funcs).ParseFS(assets, "templates/*.html")
+	translations, e := assets.ReadFile("locales/en.json")
 	if e != nil {
 		return nil, e
+	}
+	if e = json.Unmarshal(translations, &app.english); e != nil {
+		return nil, e
+	}
+	app.templates = make(map[string]*template.Template)
+	for _, lang := range []string{"ru", "en"} {
+		funcs := template.FuncMap{"date": func(t time.Time) string { return t.Format("02.01.2006") }, "iso": func(t time.Time) string { return t.UTC().Format(time.RFC3339) }, "inputDate": func(t time.Time) string { return t.UTC().Format("2006-01-02T15:04") }, "label": func(kind string) string { return app.translate(lang, kindLabel(kind)) }, "t": func(text string) string { return app.translate(lang, text) }, "languageName": languageName}
+		app.templates[lang], e = template.New("site").Funcs(funcs).ParseFS(assets, "templates/*.html")
+		if e != nil {
+			return nil, e
+		}
 	}
 	if e = app.initPasskeys(); e != nil {
 		return nil, e
@@ -136,6 +151,7 @@ func (a *Server) routes() {
 		m.HandleFunc(pattern, h)
 	}
 	static, _ := fs.Sub(assets, "static")
+	handle("POST /language/", a.chooseLanguage)
 	// Exact asset routes cannot collide with legacy /{kind}/{slug}/index.html.
 	fileServer := http.StripPrefix("/static/", http.FileServerFS(static))
 	_ = fs.WalkDir(static, ".", func(path string, entry fs.DirEntry, err error) error {
@@ -211,7 +227,7 @@ func (a *Server) routes() {
 	handle("GET /unsubscribe/{token}/", a.unsubscribe)
 	handle("POST /unsubscribe/{token}/", a.unsubscribe)
 	handle("GET /donate/", func(w http.ResponseWriter, r *http.Request) {
-		a.render(w, r, page{Mode: "message", Title: "Поддержать блог", Message: "Контакты автора — на главной странице."})
+		a.render(w, r, page{Mode: "message", Title: a.text(r, "Поддержать блог"), Message: "Контакты автора — на главной странице."})
 	})
 	handle("GET /post-style/{id}", a.postStyle)
 	handle("GET /{kind}/", a.list)
@@ -236,7 +252,10 @@ func (a *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' https: http:; media-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' https: http:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
 	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Content-Language", a.lang(r))
+	if localizedResponse(r.URL.Path) {
+		w.Header().Set("Content-Language", a.lang(r))
+		w.Header().Add("Vary", "Accept-Language, Cookie")
+	}
 	limit := int64(2 << 20)
 	if r.URL.Path == "/webmention" {
 		limit = 64 << 10
@@ -271,20 +290,13 @@ func (a *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Protocol endpoints authenticate with codes/tokens, never session cookies.
 		// Browser consent and all other browser mutations still require CSRF.
 		if r.URL.Path != "/webmention" && !protocolRequest(r) && !a.validCSRF(r) {
-			http.Error(w, "Обновите страницу и повторите действие", http.StatusForbidden)
+			http.Error(w, a.text(r, "Обновите страницу и повторите действие"), http.StatusForbidden)
 			return
 		}
 	}
 	a.serveCached(w, r)
 }
 func currentUser(r *http.Request) *User { u, _ := r.Context().Value(identityKey{}).(*User); return u }
-func (a *Server) lang(r *http.Request) string {
-	l := r.URL.Query().Get("lang")
-	if langPattern.MatchString(l) {
-		return l
-	}
-	return a.Config.Language
-}
 func (a *Server) sign(s string) string {
 	h := hmac.New(sha256.New, []byte(a.secret))
 	h.Write([]byte(s))
@@ -342,7 +354,19 @@ func (a *Server) render(w http.ResponseWriter, r *http.Request, p page) {
 	p.Site = a.Config
 	p.User = currentUser(r)
 	p.CSRF = a.csrf(w, r)
-	p.Lang = a.lang(r)
+	p.Lang = a.uiLang(r)
+	p.ContentLang = a.lang(r)
+	p.PreferredLang = a.preferredLanguage(r)
+	p.LanguageChoice = a.languageChoice(r)
+	p.LanguageReturn = r.URL.RequestURI()
+	p.Message = a.translate(p.Lang, p.Message)
+	if p.Mode == "post-delete" || p.Mode == "post-restore" {
+		p.Title = a.translate(p.Lang, p.Title)
+	}
+	if p.Lang == "en" && p.Mode != "list" && p.Mode != "post" {
+		messages, _ := json.Marshal(a.english)
+		p.ClientMessages = template.JS(messages)
+	}
 	p.Kinds = Kinds
 	if p.Home && p.Page == 1 {
 		card, _, err := a.Store.About(r.Context())
@@ -354,6 +378,7 @@ func (a *Server) render(w http.ResponseWriter, r *http.Request, p page) {
 		p.AboutHTML = a.md.Comment(card.Description)
 	}
 	if p.Mode == "post" {
+		p.ContentFallback = languageBase(p.Post.Lang) != languageBase(p.ContentLang)
 		p.StructuredData = a.structuredPost(p.Post)
 		p.AcceptsMentions = acceptsMentions(p.Post)
 		discovery := fmt.Sprintf(`<%s%s>; rel="alternate"; type="text/markdown", <%s/llms.txt?lang=%s>; rel="describedby"`, a.Config.BaseURL, p.Post.MarkdownURL(), a.Config.BaseURL, p.Post.Lang)
@@ -380,11 +405,15 @@ func (a *Server) render(w http.ResponseWriter, r *http.Request, p page) {
 		w.Header().Set("Link", discovery)
 	}
 	var b bytes.Buffer
-	if e := a.templates.ExecuteTemplate(&b, "layout", p); e != nil {
+	if e := a.templates[p.Lang].ExecuteTemplate(&b, "layout", p); e != nil {
 		a.fail(w, e)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Language", p.Lang)
+	if p.Mode == "post" && p.Post.Lang != p.Lang {
+		w.Header().Set("Content-Language", p.Lang+", "+p.Post.Lang)
+	}
 	if p.Status != 0 {
 		w.WriteHeader(p.Status)
 	}
@@ -401,7 +430,7 @@ func (a *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	if !u.Admin {
-		http.Error(w, "Недостаточно прав", 403)
+		http.Error(w, a.text(r, "Недостаточно прав"), 403)
 		return false
 	}
 	return true
@@ -418,7 +447,7 @@ func (a *Server) limited(w http.ResponseWriter, r *http.Request, key string, n i
 	}
 	if !ok {
 		w.Header().Set("Retry-After", strconv.Itoa(int(d.Seconds())))
-		http.Error(w, "Слишком много запросов. Попробуйте позже.", 429)
+		http.Error(w, a.text(r, "Слишком много запросов. Попробуйте позже."), 429)
 		return true
 	}
 	return false
@@ -447,7 +476,7 @@ func (a *Server) list(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query().Get("q")
 	if len(q) > 300 {
-		http.Error(w, "Слишком длинный запрос", 400)
+		http.Error(w, a.text(r, "Слишком длинный запрос"), 400)
 		return
 	}
 	// Search never examines protected text, even if only its title would be returned.
@@ -455,7 +484,7 @@ func (a *Server) list(w http.ResponseWriter, r *http.Request) {
 	var hero *Post
 	exclude := ""
 	if home {
-		latest, err := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), Kind: "blog", Limit: 1})
+		latest, err := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), FallbackLang: a.Config.Language, Kind: "blog", Limit: 1})
 		if err != nil {
 			a.fail(w, err)
 			return
@@ -465,12 +494,15 @@ func (a *Server) list(w http.ResponseWriter, r *http.Request) {
 			exclude = hero.ID
 		}
 	}
-	posts, e := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), Kind: kind, Search: q, PublicOnly: q != "", Home: home, HomeTimeline: home, ExcludeID: exclude, Limit: 31, Offset: (n - 1) * 30})
+	posts, e := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), FallbackLang: a.Config.Language, Kind: kind, Search: q, PublicOnly: q != "", Home: home, HomeTimeline: home, ExcludeID: exclude, Limit: 31, Offset: (n - 1) * 30})
 	if e != nil {
 		a.fail(w, e)
 		return
 	}
-	p := page{Mode: "list", Title: kindLabel(kind), Posts: posts, Page: n, Query: q}
+	p := page{Mode: "list", Title: a.text(r, kindLabel(kind)), Posts: posts, Page: n, Query: q}
+	if kind == "" {
+		p.Title = a.text(r, "Архив")
+	}
 	if r.URL.Path == "/" {
 		p.Title = a.Config.Title
 		p.Home = q == ""
@@ -479,7 +511,7 @@ func (a *Server) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if q != "" {
-		p.Title = "Поиск: " + q
+		p.Title = a.text(r, "Поиск:") + " " + q
 	}
 	if len(posts) > 30 {
 		p.Next = n + 1
@@ -491,7 +523,7 @@ func (a *Server) list(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, p)
 }
 func (a *Server) show(w http.ResponseWriter, r *http.Request) {
-	p, e := a.Store.Post(r.Context(), r.PathValue("slug"), a.lang(r))
+	p, e := a.requestedPost(r)
 	if errors.Is(e, ErrNoRows) {
 		http.NotFound(w, r)
 		return

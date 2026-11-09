@@ -215,17 +215,17 @@ func (a *Server) possePage(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if !possePublic(p) {
-				http.Error(w, "Можно отправить только опубликованную открытую запись.", 409)
+				http.Error(w, a.text(r, "Можно отправить только опубликованную открытую запись."), 409)
 				return
 			}
 			body := a.telegramText(p)
 			if r.PostForm.Get("revision") != posseRevision(p, body, target.UID) {
-				http.Error(w, "Запись или канал изменились. Обновите предпросмотр.", 409)
+				http.Error(w, a.text(r, "Запись или канал изменились. Обновите предпросмотр."), 409)
 				return
 			}
 			if r.PostForm.Get("action") == "retry-checked" {
 				if r.PostForm.Get("checked") != "yes" {
-					http.Error(w, "Проверьте канал и подтвердите отсутствие сообщения.", 400)
+					http.Error(w, a.text(r, "Проверьте канал и подтвердите отсутствие сообщения."), 400)
 					return
 				}
 				_, e = tx.Exec(r.Context(), `UPDATE syndications SET state='queued',body=$1,revision=$2,detail='',attempts=0,available_at=now(),updated_at=now() WHERE post_id=$3 AND target=$4 AND state='uncertain'`, body, posseRevision(p, body, target.UID), p.ID, target.UID)
@@ -237,16 +237,16 @@ func (a *Server) possePage(w http.ResponseWriter, r *http.Request) {
 		case "resolve":
 			s, err := scanSyndication(tx.QueryRow(r.Context(), `SELECT `+syndicationCols+` FROM syndications WHERE id=$1 AND post_id=$2 AND state='uncertain' FOR UPDATE`, r.PostForm.Get("job"), p.ID))
 			if err != nil {
-				http.Error(w, "Отправка уже обработана.", 409)
+				http.Error(w, a.text(r, "Отправка уже обработана."), 409)
 				return
 			}
 			link := strings.TrimSpace(r.PostForm.Get("url"))
 			if !telegramMessageURL(link, s.Target) {
-				http.Error(w, "Нужна ссылка на сообщение в этом канале.", 400)
+				http.Error(w, a.text(r, "Нужна ссылка на сообщение в этом канале."), 400)
 				return
 			}
 			if !possePublic(p) {
-				http.Error(w, "Сначала восстановите публичную запись.", 409)
+				http.Error(w, a.text(r, "Сначала восстановите публичную запись."), 409)
 				return
 			}
 			e = saveSyndicationLink(r.Context(), tx, p, link)
@@ -256,7 +256,7 @@ func (a *Server) possePage(w http.ResponseWriter, r *http.Request) {
 		case "cancel":
 			_, e = tx.Exec(r.Context(), `UPDATE syndications SET state='cancelled',detail='',updated_at=now() WHERE post_id=$1 AND id=$2 AND state='queued'`, p.ID, r.PostForm.Get("job"))
 		default:
-			http.Error(w, "Неизвестное действие", 400)
+			http.Error(w, a.text(r, "Неизвестное действие"), 400)
 			return
 		}
 		if e != nil {
@@ -286,7 +286,7 @@ func (a *Server) possePage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	body := a.telegramText(p)
-	a.render(w, r, page{Mode: "posse", Title: "Отправить в Telegram", Post: p, Syndications: jobs, POSSETarget: target, POSSEPreview: body, POSSERevision: posseRevision(p, body, target.UID), POSSEReason: reason, POSSECanSend: canSend})
+	a.render(w, r, page{Mode: "posse", Title: a.text(r, "Отправить в Telegram"), Post: p, Syndications: jobs, POSSETarget: target, POSSEPreview: body, POSSERevision: posseRevision(p, body, target.UID), POSSEReason: reason, POSSECanSend: canSend})
 }
 func telegramMessageURL(raw, target string) bool {
 	if !strings.HasPrefix(raw, target+"/") {

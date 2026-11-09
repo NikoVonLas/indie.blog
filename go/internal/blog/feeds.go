@@ -20,6 +20,7 @@ type rssChannel struct {
 	Items       []rssItem `xml:"item"`
 }
 type rssItem struct {
+	Language    string `xml:"http://www.w3.org/XML/1998/namespace lang,attr"`
 	Title       string `xml:"title"`
 	Link        string `xml:"link"`
 	GUID        string `xml:"guid"`
@@ -36,10 +37,10 @@ func (a *Server) feed(w http.ResponseWriter, r *http.Request) {
 	private := scope == "private"
 	u := currentUser(r)
 	if private && (u == nil || !u.Member && !u.Admin) {
-		http.Error(w, "Требуется вход", 401)
+		http.Error(w, a.text(r, "Требуется вход"), 401)
 		return
 	}
-	posts, e := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), PublicOnly: !private, Home: true, Limit: 30})
+	posts, e := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), FallbackLang: a.Config.Language, PublicOnly: !private, Home: true, Limit: 30})
 	if e != nil {
 		a.fail(w, e)
 		return
@@ -50,14 +51,14 @@ func (a *Server) feed(w http.ResponseWriter, r *http.Request) {
 		if p.ExternalURL != "" {
 			body = p.Summary
 		}
-		feed.Channel.Items = append(feed.Channel.Items, rssItem{Title: p.Title, Link: a.Config.BaseURL + p.URL(), GUID: a.Config.BaseURL + "/#" + p.ID, Date: p.PublishedAt.Format(time.RFC1123Z), Description: body})
+		feed.Channel.Items = append(feed.Channel.Items, rssItem{Language: p.Lang, Title: p.Title, Link: a.Config.BaseURL + p.URL(), GUID: a.Config.BaseURL + "/#" + p.ID, Date: p.PublishedAt.Format(time.RFC1123Z), Description: body})
 	}
 	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
 	_, _ = w.Write([]byte(xml.Header))
 	_ = xml.NewEncoder(w).Encode(feed)
 }
 func (a *Server) jsonFeed(w http.ResponseWriter, r *http.Request) {
-	posts, e := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), PublicOnly: true, Home: true, Limit: 30})
+	posts, e := a.Store.Posts(r.Context(), Filter{Lang: a.lang(r), FallbackLang: a.Config.Language, PublicOnly: true, Home: true, Limit: 30})
 	if e != nil {
 		a.fail(w, e)
 		return
