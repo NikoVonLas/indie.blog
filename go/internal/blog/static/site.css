@@ -41,9 +41,8 @@ html[data-js] .site-search:not(.site-search-visible) { display: none; }
 .header-logo { color: var(--text-color); }
 .header-burger { display: none; }
 .language-picker { display: flex; align-items: center; gap: 8px; margin: 0; }
-.language-picker select { width: auto; max-width: 155px; margin: 0; padding: 10px 12px; }
-.language-picker .language-apply { margin: 0; padding: 10px 12px; }
-html[data-js] .language-apply { display: none; }
+.language-picker .button { margin: 0; }
+.language-picker .button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--text-color); }
 .language-notice { padding: 15px 20px; border-left: 2px solid var(--text-color); background: var(--block-bg-color); }
 main { margin-top: 20px; min-height: 50vh; }
 .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 30px; margin: 25px 0 45px; }

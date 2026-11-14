@@ -72,7 +72,7 @@ func TestManualLanguagePreference(t *testing.T) {
 	if cookie == nil || cookie.Value != "en" || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" || cookie.MaxAge <= 0 {
 		t.Fatal("language choice not persisted safely", cookie)
 	}
-	if w := languageGet(b, "/", "ru-RU"); !strings.Contains(w.Body.String(), "📰 Articles") || !strings.Contains(w.Body.String(), `value="en" lang="en" selected`) {
+	if w := languageGet(b, "/", "ru-RU"); !strings.Contains(w.Body.String(), "📰 Articles") || !strings.Contains(w.Body.String(), `aria-label="English" title="English" aria-pressed="true"`) {
 		t.Fatal("manual selection did not override the browser")
 	}
 	if w := b.request("POST", "/language/", url.Values{"language": {"auto"}, "next": {"/"}}); w.Code != 303 || b.cookies[languageCookie] != nil {
