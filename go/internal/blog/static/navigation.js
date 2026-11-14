@@ -10,7 +10,6 @@ window.blogText = (text) => {
   document.documentElement.setAttribute('data-js', '');
   document.addEventListener('DOMContentLoaded', () => {
     const language = document.querySelector('.language-picker');
-    language?.querySelector('select').addEventListener('change', () => language.requestSubmit());
     language?.addEventListener('submit', () => {
       language.querySelector('[name="next"]').value = location.pathname + location.search + location.hash;
     });
